@@ -2,7 +2,7 @@ import type { CampusEvent, FeedItem, Metric, NavItem, Person, Resource, Task } f
 
 // Temporary seed data. Later, replace these exports with Supabase queries that return the same shapes.
 export const navItems: NavItem[] = [
-  { href: "/", label: "Home", icon: "ti-home" },
+  { href: "/home", label: "Home", icon: "ti-home" },
   { href: "/community", label: "Community", icon: "ti-users" },
   { href: "/study", label: "Study", icon: "ti-school" },
   { href: "/events", label: "MyCSD", icon: "ti-confetti" },
