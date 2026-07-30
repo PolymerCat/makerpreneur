@@ -1,0 +1,2 @@
+1. I want to be able to update the profile info and save them into the database
+2. In the study section, add a section for subjects. The user can click on the button and enter the subjects page. There will be a list of subjects, and also the user can create subjects and delete them and modify them.

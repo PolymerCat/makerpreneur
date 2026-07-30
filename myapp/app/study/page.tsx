@@ -1,5 +1,6 @@
 import { ResourceList } from "@/components/domain/ResourceList";
 import { TaskList } from "@/components/domain/TaskList";
+import { SubjectsSection } from "@/components/domain/SubjectsSection";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHero } from "@/components/layout/PageHero";
 import { Card } from "@/components/ui/Card";
@@ -12,20 +13,22 @@ export default function StudyPage() {
       <PageHero
         eyebrow="Study"
         title="Planner and resources"
-        description="A page-level composition for assignments, study materials, rooms, and future AI tools."
+        description="Manage assignments, subjects, study materials, rooms, and AI tools."
         icon="ti-school"
       />
 
       <section className="two-column">
         <div>
-          <SectionHeader title="Planner" description="This list is ready to hydrate from a `tasks` table." icon="ti-calendar-check" />
+          <SectionHeader title="Planner" icon="ti-calendar-check" />
           <TaskList tasks={tasks} />
         </div>
         <div>
-          <SectionHeader title="Resource library" description="A reusable media-list pattern for files or links." icon="ti-books" />
+          <SectionHeader title="Resource library" icon="ti-books" />
           <ResourceList resources={resources} />
         </div>
       </section>
+
+      <SubjectsSection />
 
       <section className="responsive-grid">
         <Card>

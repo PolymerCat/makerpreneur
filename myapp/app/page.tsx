@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createBrowserClient } from "@/lib/supabase";
-import { getSession, signOut as localSignOut } from "@/lib/auth";
+import { useSession } from "@/lib/auth-context";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
@@ -25,7 +25,7 @@ const TABLE_CANDIDATES = [
   "posts", "users", "categories",
 ];
 
-async function scanTables(supabase: ReturnType<typeof createBrowserClient>) {
+async function scanTables(supabase: SupabaseClient) {
   const results: TableData[] = [];
   for (const name of TABLE_CANDIDATES) {
     const { data, error } = await supabase.from(name).select("*").limit(3);
@@ -41,8 +41,7 @@ async function scanTables(supabase: ReturnType<typeof createBrowserClient>) {
 }
 
 export default function CommandPage() {
-  const supabase = createBrowserClient();
-  const [user, setUser] = useState<{ email: string; id: string } | null>(() => getSession());
+  const { supabase, user } = useSession();
   const [tables, setTables] = useState<TableData[]>([]);
   const [loading, setLoading] = useState(true);
   const [queryTable, setQueryTable] = useState("");
@@ -159,10 +158,7 @@ export default function CommandPage() {
               <button
                 className="button-link button-link-ghost"
                 type="button"
-                onClick={() => {
-                  localSignOut();
-                  setUser(null);
-                }}
+                onClick={() => supabase.auth.signOut()}
                 style={{ fontSize: 13, border: 0, cursor: "pointer" }}
               >
                 <Icon name="ti-logout" /> Sign out

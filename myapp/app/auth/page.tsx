@@ -2,33 +2,40 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { signUp, signIn } from "@/lib/auth";
 import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
+import { useSession } from "@/lib/auth-context";
 
 type AuthMode = "signin" | "signup";
 
 export default function AuthPage() {
   const router = useRouter();
+  const { supabase } = useSession();
   const [mode, setMode] = useState<AuthMode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setBusy(true);
 
     try {
       if (mode === "signup") {
-        signUp(email, password);
+        const { error } = await supabase.auth.signUp({ email, password });
+        if (error) throw error;
       } else {
-        signIn(email, password);
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
       }
       router.push("/");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -50,7 +57,7 @@ export default function AuthPage() {
               type="text"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Any email (prototype — no verification)"
+              placeholder="Any email"
               required
             />
           </label>
@@ -70,9 +77,9 @@ export default function AuthPage() {
             <p style={{ color: "var(--warning)", fontSize: 13, margin: 0 }}>{error}</p>
           )}
 
-          <button className="secondary-button" type="submit">
+          <button className="secondary-button" type="submit" disabled={busy} style={{ opacity: busy ? 0.6 : 1, border: 0, cursor: busy ? "not-allowed" : "pointer" }}>
             <Icon name={mode === "signin" ? "ti-login" : "ti-user-plus"} />
-            {mode === "signin" ? "Sign in" : "Create account"}
+            {busy ? "Please wait..." : mode === "signin" ? "Sign in" : "Create account"}
           </button>
 
           <button
