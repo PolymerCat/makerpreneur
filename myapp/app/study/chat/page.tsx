@@ -3,7 +3,7 @@
 import React from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Icon } from "@/components/ui/Icon";
-import { getSession } from "@/lib/auth";
+import { useSession } from "@/lib/auth-context";
 import { marked } from "marked";
 import katex from "katex";
 import "katex/dist/katex.min.css";
@@ -84,7 +84,7 @@ export default function ChatPage() {
   var [activeTab, setActiveTab] = React.useState("chat");
   var [conversations, setConversations] = React.useState<Conversation[]>([]);
   var [activeConvId, setActiveConvId] = React.useState("");
-  var [authUser, setAuthUser] = React.useState<{ email: string; id: string } | null>(null);
+  var { user } = useSession();
   var [historyLoading, setHistoryLoading] = React.useState(false);
   var [sources, setSources] = React.useState<{ material: Material; chunkCount: number }[]>([]);
   var messagesEndRef = React.useRef<HTMLDivElement>(null);
@@ -97,13 +97,10 @@ export default function ChatPage() {
   }, [messages]);
 
   React.useEffect(function() {
-    getSession().then(function(session) {
-      if (session) {
-        setAuthUser(session);
-        loadConversations(session.id);
-      }
-    });
-  }, []);
+    if (user) {
+      loadConversations(user.id);
+    }
+  }, [user]);
 
   React.useEffect(function() {
     if (!activeCourse) {
@@ -141,17 +138,17 @@ export default function ChatPage() {
   }
 
   async function ensureConversation(title: string): Promise<string> {
-    if (activeConvId !== "" && authUser) {
+    if (activeConvId !== "" && user) {
       return activeConvId;
     }
-    if (!authUser) {
+    if (!user) {
       return "";
     }
     try {
-      var conv = await db.createConversation(authUser.id, title);
+      var conv = await db.createConversation(user.id, title);
       var convData = conv as Conversation;
       setActiveConvId(convData.id);
-      var list = await db.listConversations(authUser.id);
+      var list = await db.listConversations(user.id);
       setConversations(list as Conversation[]);
       return convData.id;
     } catch (err) {
@@ -187,8 +184,8 @@ export default function ChatPage() {
         setMessages([]);
         setActiveConvId("");
       }
-      if (authUser) {
-        var list = await db.listConversations(authUser.id);
+      if (user) {
+        var list = await db.listConversations(user.id);
         setConversations(list as Conversation[]);
       }
     } catch (err) {
@@ -293,15 +290,15 @@ export default function ChatPage() {
         });
       }
 
-      if (authUser) {
+      if (user) {
         var title = question.slice(0, 60);
         var convId = await ensureConversation(title);
         if (convId !== "") {
           await db.addMessage(convId, "user", question);
           await db.addMessage(convId, "assistant", assistantMessage);
-          if (authUser) {
+          if (user) {
             await db.renameConversation(convId, title);
-            var list = await db.listConversations(authUser.id);
+            var list = await db.listConversations(user.id);
             setConversations(list as Conversation[]);
           }
         }
@@ -373,7 +370,7 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {!authUser ? (
+        {!user ? (
           <div className="chat-auth-banner">
             <Icon name="ti-user" />
             <span>Sign in to save conversations across sessions.</span>

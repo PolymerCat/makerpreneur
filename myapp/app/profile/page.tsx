@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createBrowserClient } from "@/lib/supabase";
-import { getSession } from "@/lib/auth";
+import { useSession } from "@/lib/auth-context";
 import { getProfile, upsertProfile } from "@/lib/profile-store";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHero } from "@/components/layout/PageHero";
@@ -11,32 +10,40 @@ import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
 
 export default function ProfilePage() {
-  const supabase = createBrowserClient();
-  const session = getSession();
-  const [profile, setProfile] = useState(getProfile(session?.id ?? ""));
+  const { supabase, user } = useSession();
+  const [profile, setProfile] = useState(getProfile(user?.id ?? ""));
   const [fullName, setFullName] = useState(profile?.full_name ?? "");
+  const [matricNumber, setMatricNumber] = useState(profile?.matric_number ?? "");
+  const [preferredLanguage, setPreferredLanguage] = useState<"en" | "bm">(profile?.preferred_language ?? "en");
   const [supaRows, setSupaRows] = useState(0);
   const [saved, setSaved] = useState(false);
 
-  React.useEffect(function() {
-    getSession().then(function(s) {
-      setSession(s);
-      if (s) {
-        var p = getProfile(s.id);
-        setProfile(p ?? null);
-        if (p) {
-          setFullName(p.full_name);
-        }
-      }
-    });
+  useEffect(function() {
+    if (!user) return;
+    const p = getProfile(user.id);
+    setProfile(p);
+    if (p) {
+      setFullName(p.full_name);
+      setMatricNumber(p.matric_number ?? "");
+      setPreferredLanguage(p.preferred_language ?? "en");
+    }
     supabase.from("profiles").select("id").then(function(result) {
       setSupaRows(result.data?.length ?? 0);
     });
-  }, [supabase]);
+  }, [user, supabase]);
 
   function handleSave() {
-    if (!session) return;
-    const updated = upsertProfile(session.id, fullName);
+    if (!user) return;
+    const updated = upsertProfile(
+      user.id,
+      {
+        full_name: fullName,
+        matric_number: matricNumber,
+        preferred_language: preferredLanguage,
+        role: "student",
+      },
+      supabase,
+    );
     setProfile(updated);
     setSaved(true);
     setTimeout(function() { setSaved(false); }, 2000);
@@ -50,7 +57,6 @@ export default function ProfilePage() {
         description="Edit your profile. Changes are synced to the Supabase profiles table."
         icon="ti-user"
       />
-
       <section className="two-column">
         <Card>
           <div className="form-stack">
@@ -67,13 +73,8 @@ export default function ProfilePage() {
               <input id="fullName" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Your display name" />
             </div>
             <div>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 800, color: "var(--muted)", marginBottom: 4 }}>Full name</label>
-              <input
-                value={fullName}
-                onChange={e => setFullName(e.target.value)}
-                placeholder="Your display name"
-                style={{ marginTop: 0 }}
-              />
+              <label htmlFor="matric">Matric number</label>
+              <input id="matric" value={matricNumber} onChange={e => setMatricNumber(e.target.value)} placeholder="e.g. 17101234" />
             </div>
             <div>
               <label htmlFor="lang">Preferred language</label>
@@ -106,7 +107,7 @@ export default function ProfilePage() {
               <button className="secondary-button" type="button" onClick={handleSave} style={{ border: 0, cursor: "pointer" }}>
                 <Icon name="ti-device-floppy" /> Save
               </button>
-              {saved && <Badge tone="success">Saved locally</Badge>}
+              {saved && <Badge tone="success">Saved to database</Badge>}
             </div>
           </div>
         </Card>
