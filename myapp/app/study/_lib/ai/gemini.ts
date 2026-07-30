@@ -82,10 +82,12 @@ async function generateJson(
       });
       trackCall(model, task);
       var text = (response.text || "").trim();
+      try {
+        return JSON.parse(text);
+      } catch (_e) {}
       if (text.startsWith("```")) {
         text = text.replace(/```json\n?/g, "").replace(/```\n?/g, "");
       }
-      text = text.replace(/\\(?!["\\\/bfnrt])/g, "");
       return JSON.parse(text);
     } catch (err: unknown) {
       lastError = err;
@@ -102,6 +104,7 @@ async function embedTexts(texts: string[]): Promise<number[][]> {
   for (var i = 0; i < EMBED_MODELS.length; i++) {
     var model = EMBED_MODELS[i];
     try {
+      await rateLimit(model);
       var response = await client.models.embedContent({
         model: model,
         contents: texts,
@@ -109,6 +112,7 @@ async function embedTexts(texts: string[]): Promise<number[][]> {
           outputDimensionality: 768
         }
       });
+      trackCall(model, "embed");
       return response.embeddings.map(function(e: any) {
         return e.values;
       });

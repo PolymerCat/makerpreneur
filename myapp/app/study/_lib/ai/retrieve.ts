@@ -146,4 +146,4 @@ async function rerank(
   }
 }
 
-export { retrieve, retrieveAdvanced };
+export { retrieve, retrieveAdvanced, expandQueries, rrfFuse, rerank };

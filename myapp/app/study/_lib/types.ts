@@ -25,15 +25,6 @@ export type Chunk = {
   embedding: number[];
 };
 
-export type Paper = {
-  id: string;
-  courseId: string;
-  year: number;
-  semester: string;
-  fileUrl: string;
-  extractedText: string;
-};
-
 export type Summary = {
   id: string;
   materialId: string;
@@ -76,14 +67,6 @@ export type Question = {
   explanations?: Record<string, string> | null;
 };
 
-export type Attempt = {
-  id: string;
-  quizId: string;
-  score: number;
-  answers: string;
-  gradedAt: string;
-};
-
 export type StudyPlan = {
   id: string;
   courseId: string;
@@ -118,7 +101,4 @@ export type Prediction = {
   studiedIds: string;
 };
 
-export type SearchIndex = {
-  materialId: string;
-  indexData: string;
-};
+

@@ -7,18 +7,6 @@ function getClient() {
   return createBrowserClient(supabaseUrl, supabaseAnonKey);
 }
 
-/* Helpers */
-function pick(obj: any, keys: string[]): any {
-  var result: any = {};
-  for (var i = 0; i < keys.length; i++) {
-    var k = keys[i];
-    if (obj[k] !== undefined) {
-      result[k] = obj[k];
-    }
-  }
-  return result;
-}
-
 /* Column name mapping: camelCase (JS) -> snake_case (SQL) */
 var COLUMN_MAP: Record<string, Record<string, string>> = {
   materials:    { courseId: "course_id", fileUrl: "file_url", fileType: "file_type", createdAt: "created_at" },
@@ -110,7 +98,7 @@ function fixJsonFields(table: string, row: any): any {
   return row;
 }
 
-/* --- PUBLIC API (matches db.ts) --- */
+/* --- PUBLIC API --- */
 
 async function insert(table: string, data: any): Promise<any> {
   var client = getClient();
@@ -121,6 +109,21 @@ async function insert(table: string, data: any): Promise<any> {
   }
   var row = toCamel(table, result.data);
   return fixJsonFields(table, row);
+}
+
+async function batchInsert(table: string, records: any[]): Promise<any[]> {
+  if (records.length === 0) {
+    return [];
+  }
+  var client = getClient();
+  var snake = records.map(function(r) { return toSnake(table, r); });
+  var result = await client.from(table).insert(snake).select();
+  if (result.error) {
+    throw new Error("batchInsert " + table + ": " + result.error.message);
+  }
+  return toCamelList(table, result.data || []).map(function(r) {
+    return fixJsonFields(table, r);
+  });
 }
 
 async function getById(table: string, rowId: string): Promise<any | null> {
@@ -266,127 +269,6 @@ async function countForCourse(courseId: string): Promise<Record<string, number>>
   };
 }
 
-async function seedDemoCourse(): Promise<void> {
-  var client = getClient();
-  var existing = await client.from("courses").select("id").limit(1);
-  if (existing.data && existing.data.length > 0) {
-    return;
-  }
-  await client.from("courses").insert({
-    id: "demo_course",
-    code: "DEMO101",
-    name: "Demo Course",
-    semester: "2026-1"
-  });
-}
-
-async function seedDemoMaterials(): Promise<void> {
-  var client = getClient();
-  var existing = await client.from("materials").select("id").limit(1);
-  if (existing.data && existing.data.length > 0) {
-    return;
-  }
-  await seedDemoCourse();
-
-  await client.from("materials").insert([
-    {
-      id: "demo_mat_1",
-      course_id: "demo_course",
-      title: "Introduction to Biology",
-      file_url: "",
-      file_type: "application/pdf",
-      status: "ready",
-      category: "regular",
-      year: 2026,
-      semester: "1"
-    },
-    {
-      id: "demo_mat_2",
-      course_id: "demo_course",
-      title: "Cell Structure Notes",
-      file_url: "",
-      file_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      status: "ready",
-      category: "regular",
-      year: 2026,
-      semester: "1"
-    }
-  ]);
-
-  await client.from("chunks").insert([
-    {
-      id: "demo_chunk_1",
-      material_id: "demo_mat_1",
-      page: 1,
-      chunk_index: 0,
-      text: "Biology is the natural science that studies life and living organisms. It encompasses the study of structure, function, growth, evolution, and distribution of all living things. Cells are the basic unit of life.",
-      embedding: null
-    },
-    {
-      id: "demo_chunk_2",
-      material_id: "demo_mat_1",
-      page: 1,
-      chunk_index: 1,
-      text: "There are two main types of cells: prokaryotic and eukaryotic. Prokaryotic cells lack a nucleus and membrane-bound organelles. Eukaryotic cells have a nucleus and various organelles including mitochondria and the endoplasmic reticulum.",
-      embedding: null
-    },
-    {
-      id: "demo_chunk_3",
-      material_id: "demo_mat_1",
-      page: 2,
-      chunk_index: 0,
-      text: "DNA is the hereditary material found in all living cells. It contains the genetic instructions for development, functioning, growth, and reproduction. The DNA molecule is shaped like a double helix.",
-      embedding: null
-    },
-    {
-      id: "demo_chunk_4",
-      material_id: "demo_mat_2",
-      page: 1,
-      chunk_index: 0,
-      text: "The cell membrane is a biological membrane that separates the interior of a cell from its external environment. It is selectively permeable and regulates what enters and leaves the cell.",
-      embedding: null
-    },
-    {
-      id: "demo_chunk_5",
-      material_id: "demo_mat_2",
-      page: 1,
-      chunk_index: 1,
-      text: "Mitochondria are known as the powerhouse of the cell. They generate most of the cell's supply of adenosine triphosphate (ATP), used as a source of chemical energy. Mitochondria have their own DNA.",
-      embedding: null
-    }
-  ]);
-}
-
-/* semcache helpers */
-async function semcacheGet(question: string, queryEmbedding: number[]): Promise<string | null> {
-  var client = getClient();
-  try {
-    var embedding = "[" + queryEmbedding.join(",") + "]";
-    var result = await client.rpc("search_semcache", {
-      query_embedding: embedding,
-      match_threshold: 0.95
-    });
-    if (result.data && result.data.length > 0) {
-      return result.data[0].answer;
-    }
-  } catch (_err) {
-  }
-  return null;
-}
-
-async function semcachePut(question: string, answer: string, embedding: number[]): Promise<void> {
-  var client = getClient();
-  var embeddingStr = "[" + embedding.join(",") + "]";
-  try {
-    await client.from("semcache").insert({
-      question: question,
-      answer: answer,
-      embedding: embeddingStr
-    });
-  } catch (_err) {
-  }
-}
-
 async function listConversations(userId: string) {
   var client = getClient();
   var result = await client
@@ -481,23 +363,6 @@ async function uploadFile(bucket: string, path: string, file: Blob | ArrayBuffer
   return data.path;
 }
 
-async function downloadFile(bucket: string, path: string): Promise<Blob> {
-  var client = getClient();
-  var { data, error } = await client.storage.from(bucket).download(path);
-  if (error || !data) {
-    throw new Error("downloadFile: " + (error?.message || "no data returned"));
-  }
-  return data;
-}
-
-async function deleteFile(bucket: string, paths: string[]): Promise<void> {
-  var client = getClient();
-  var { error } = await client.storage.from(bucket).remove(paths);
-  if (error) {
-    throw new Error("deleteFile: " + error.message);
-  }
-}
-
 function getPublicUrl(bucket: string, path: string): string {
   var client = getClient();
   var { data } = client.storage.from(bucket).getPublicUrl(path);
@@ -506,6 +371,7 @@ function getPublicUrl(bucket: string, path: string): string {
 
 export var sdb = {
   insert: insert,
+  batchInsert: batchInsert,
   getById: getById,
   listAll: listAll,
   update: update,
@@ -513,10 +379,6 @@ export var sdb = {
   vectorSearch: vectorSearch,
   materialText: materialText,
   countForCourse: countForCourse,
-  seedDemoCourse: seedDemoCourse,
-  seedDemoMaterials: seedDemoMaterials,
-  semcacheGet: semcacheGet,
-  semcachePut: semcachePut,
   listConversations: listConversations,
   createConversation: createConversation,
   deleteConversation: deleteConversation,
@@ -524,7 +386,5 @@ export var sdb = {
   addMessage: addMessage,
   renameConversation: renameConversation,
   uploadFile: uploadFile,
-  downloadFile: downloadFile,
-  deleteFile: deleteFile,
   getPublicUrl: getPublicUrl
 };

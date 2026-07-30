@@ -240,7 +240,7 @@ export default function ChatPage() {
       console.log("[SEND] readyMaterialIds:", readyMaterialIds.length, readyMaterialIds);
       var topChunks: string[] = [];
       if (readyMaterialIds.length > 0) {
-        topChunks = await aiRetrieve(question, readyMaterialIds, 4);
+        topChunks = await aiRetrieve(question, readyMaterialIds, 4, "en");
         console.log("[SEND] topChunks count:", topChunks.length);
       } else {
         console.log("[SEND] no ready materials, sending empty chunks");

@@ -114,7 +114,7 @@ export default function MaterialsPage() {
       });
       await loadMaterials();
 
-      var chunks = chunkPages(pages, null, null);
+      var chunks = chunkPages(pages);
       if (chunks.length === 0) {
         throw new Error("No chunks generated");
       }
@@ -131,15 +131,16 @@ export default function MaterialsPage() {
           embeddings.push(batchEmbeddings[j]);
         }
       }
-      for (var i = 0; i < chunks.length; i++) {
-        await db.insert("chunks", {
+      var chunkRecords = chunks.map(function(chunk, idx) {
+        return {
           materialId: materialId,
-          page: chunks[i].page,
-          chunkIndex: chunks[i].chunkIndex,
-          text: chunks[i].text,
-          embedding: embeddings[i] || []
-        });
-      }
+          page: chunk.page,
+          chunkIndex: chunk.chunkIndex,
+          text: chunk.text,
+          embedding: embeddings[idx] || []
+        };
+      });
+      await db.batchInsert("chunks", chunkRecords);
       await db.update("materials", materialId, { status: "ready" });
       await loadMaterials();
     } catch (err) {

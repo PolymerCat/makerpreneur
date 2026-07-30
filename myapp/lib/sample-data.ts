@@ -1,4 +1,4 @@
-import type { CampusEvent, FeedItem, Metric, NavItem, Person, Resource, Subject, Task } from "./types";
+import type { CampusEvent, FeedItem, Metric, NavItem, Person, Task } from "./types";
 
 // Temporary seed data. Later, replace these exports with Supabase queries that return the same shapes.
 export const navItems: NavItem[] = [
@@ -41,44 +41,10 @@ export const people: Person[] = [
   { id: "person-3", name: "Mei Ling", detail: "Science - Year 1", initials: "ML", actionLabel: "Connect" },
 ];
 
-export const resources: Resource[] = [
-  { id: "resource-1", name: "Final exam roadmap", meta: "PDF - 600 KB", icon: "ti-file-text" },
-  { id: "resource-2", name: "Formula sheet - Physics", meta: "PDF - 420 KB", icon: "ti-map" },
-  { id: "resource-3", name: "Radiotherapy recap", meta: "Video - 18 min", icon: "ti-video" },
-];
-
 export const campusServices: FeedItem[] = [
   { id: "campus-1", title: "Shuttle Bus", body: "Route B arrives in 6 minutes.", tag: "Live", icon: "ti-bus" },
   { id: "campus-2", title: "Library", body: "Central campus library is open until 10 PM.", tag: "Open", icon: "ti-books" },
   { id: "campus-3", title: "Internet Maintenance", body: "Scheduled maintenance on 22 June, 8 PM to 10 PM.", tag: "Alert", icon: "ti-wifi-off" },
 ];
 
-export const sampleSubjects: Subject[] = [
-  {
-    id: "subj-1",
-    subject_code: "MPB201",
-    subject_name: "Radiotherapy",
-    description: "Principles and techniques of radiation therapy for cancer treatment.",
-    created_by: "user-1",
-    created_at: "2026-01-15T08:00:00Z",
-    updated_at: "2026-06-20T10:00:00Z",
-  },
-  {
-    id: "subj-2",
-    subject_code: "FIN345",
-    subject_name: "Financial Management",
-    description: "Corporate finance, capital budgeting, and financial analysis.",
-    created_by: "user-1",
-    created_at: "2026-01-15T08:00:00Z",
-    updated_at: "2026-06-20T10:00:00Z",
-  },
-  {
-    id: "subj-3",
-    subject_code: "MPB204",
-    subject_name: "Medical Physics",
-    description: "Physics principles applied to medicine and diagnostics.",
-    created_by: "user-1",
-    created_at: "2026-01-15T08:00:00Z",
-    updated_at: "2026-06-20T10:00:00Z",
-  },
-];
+

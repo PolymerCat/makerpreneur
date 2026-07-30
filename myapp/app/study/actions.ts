@@ -4,6 +4,7 @@ import { llm } from "./_lib/ai/gemini";
 import { prompts } from "./_lib/ai/prompts";
 import { chunkPages } from "./_lib/ai/chunk";
 import { extractPages } from "./_lib/ai/extract";
+import { expandQueries, rrfFuse, rerank } from "./_lib/ai/retrieve";
 
 var DEFAULT_CARD_COUNT = 10;
 var DEFAULT_QUESTION_COUNT = 10;
@@ -95,25 +96,26 @@ export async function deleteStorageFiles(paths: string[]): Promise<void> {
 }
 
 var MIN_SIMILARITY = 0.2;
+var RRF_K = 60;
 
 export async function aiRetrieve(
   question: string,
   materialIds: string[],
-  topK: number
+  topK: number,
+  language: string = "en"
 ): Promise<string[]> {
-  console.log("[aiRetrieve] START question:", question.slice(0, 60), "materialIds:", materialIds.length);
+  console.log("[aiRetrieve] START question:", question.slice(0, 60), "materialIds:", materialIds.length, "language:", language);
+
+  var { createServerSupabaseClient } = await import("@/lib/supabase/server");
+  var supabase = await createServerSupabaseClient();
 
   var queryEmbedding = await llm.embedTexts([question]);
   if (!queryEmbedding || queryEmbedding.length === 0) {
     console.log("[aiRetrieve] embedding returned empty, aborting");
     return [];
   }
-  console.log("[aiRetrieve] embedding dim:", queryEmbedding[0].length);
-
   var embedding = queryEmbedding[0];
   var embeddingStr = "[" + embedding.join(",") + "]";
-  var { createServerSupabaseClient } = await import("@/lib/supabase/server");
-  var supabase = await createServerSupabaseClient();
 
   var cacheResult = await supabase.rpc("search_semcache", {
     query_embedding: embeddingStr,
@@ -131,45 +133,62 @@ export async function aiRetrieve(
   }
   console.log("[aiRetrieve] semcache MISS");
 
-  var allChunks: { text: string; similarity: number }[] = [];
-  var unfiltered: { text: string; similarity: number }[] = [];
-  for (var i = 0; i < materialIds.length; i++) {
-    console.log("[aiRetrieve] searching material:", materialIds[i]);
-    var { data, error } = await supabase.rpc("search_chunks", {
-      query_embedding: embeddingStr,
-      match_material_id: materialIds[i],
-      match_count: topK
-    });
-    if (error) {
-      console.error("[aiRetrieve] search_chunks RPC error:", error);
-      continue;
+  async function searchAll(text: string): Promise<any[]> {
+    var emb = await llm.embedTexts([text]);
+    if (!emb || emb.length === 0) {
+      return [];
     }
-    if (data) {
-      console.log("[aiRetrieve] material", materialIds[i], "returned", data.length, "chunks");
-      for (var j = 0; j < data.length; j++) {
-        console.log("[aiRetrieve] chunk", j, "similarity:", data[j].similarity, "text:", (data[j].text || "").slice(0, 80));
-        unfiltered.push({ text: data[j].text, similarity: data[j].similarity });
-        if (data[j].similarity >= MIN_SIMILARITY) {
-          allChunks.push({ text: data[j].text, similarity: data[j].similarity });
+    var embStr = "[" + emb[0].join(",") + "]";
+    var searches = materialIds.map(function(id) {
+      return supabase.rpc("search_chunks", {
+        query_embedding: embStr,
+        match_material_id: id,
+        match_count: topK
+      });
+    });
+    var results = await Promise.all(searches);
+    var allResults: any[] = [];
+    for (var i = 0; i < results.length; i++) {
+      var data = results[i].data;
+      if (data) {
+        for (var j = 0; j < data.length; j++) {
+          if (data[j].similarity >= MIN_SIMILARITY) {
+            allResults.push(data[j]);
+          }
         }
       }
-    } else {
-      console.log("[aiRetrieve] material", materialIds[i], "returned null/undefined data");
     }
+    return allResults;
   }
 
-  var source = allChunks.length > 0 ? allChunks : unfiltered;
-  console.log("[aiRetrieve] filtered chunks:", allChunks.length, "fallback source:", source.length);
+  var queries = await expandQueries(question, language);
+  console.log("[aiRetrieve] expanded to", queries.length, "queries");
 
-  source.sort(function(a, b) { return b.similarity - a.similarity; });
-  var result = source.slice(0, topK * 2).map(function(c) { return c.text; });
-  console.log("[aiRetrieve] returning", result.length, "chunks to client");
+  var allLists: any[][] = [];
+  for (var i = 0; i < queries.length; i++) {
+    var qResults = await searchAll(queries[i]);
+    console.log("[aiRetrieve] query", i, "returned", qResults.length, "chunks");
+    allLists.push(qResults);
+  }
 
-  if (result.length > 0) {
+  var fused = rrfFuse(allLists, RRF_K);
+  console.log("[aiRetrieve] fused", fused.length, "chunks");
+
+  var topTexts: string[] = [];
+  var fuseK = topK * 3;
+  for (var i = 0; i < fused.length && i < fuseK; i++) {
+    topTexts.push(fused[i].text);
+  }
+  console.log("[aiRetrieve] sending", topTexts.length, "chunks to reranker");
+
+  var reranked = await rerank(question, topTexts, topK * 2);
+  console.log("[aiRetrieve] reranker returned", reranked.length, "chunks");
+
+  if (reranked.length > 0) {
     try {
       await supabase.from("semcache").insert({
         question: question,
-        answer: JSON.stringify(result),
+        answer: JSON.stringify(reranked),
         embedding: embeddingStr
       });
       console.log("[aiRetrieve] cached result");
@@ -178,7 +197,7 @@ export async function aiRetrieve(
     }
   }
 
-  return result;
+  return reranked;
 }
 
 export async function aiDetectMetadata(
@@ -192,12 +211,10 @@ export async function aiDetectMetadata(
 export async function aiExtractAndChunk(
   fileText: string,
   fileType: string,
-  fileName: string,
-  chunkSize: number | null,
-  overlap: number | null
+  fileName: string
 ): Promise<{ page: number; chunkIndex: number; text: string }[]> {
   var pages = extractPages(fileText, fileType, fileName);
-  var chunks = chunkPages(pages, chunkSize, overlap);
+  var chunks = chunkPages(pages);
   return chunks;
 }
 
