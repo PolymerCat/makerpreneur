@@ -73,6 +73,7 @@ export type Question = {
   options: string[];
   answer: string;
   rubric: string;
+  explanations?: Record<string, string> | null;
 };
 
 export type Attempt = {

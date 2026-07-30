@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf";
+import { llm } from "../../_lib/ai/gemini";
 
 var BUCKET = "materials";
 
@@ -50,8 +51,33 @@ export async function POST(request: Request) {
       }
     }
 
+    // Fallback to Gemini Multimodal Vision API if PDF is scanned (0 text extracted)
     if (pages.length === 0) {
-      return new Response(JSON.stringify({ error: "No text extracted from PDF" }), {
+      console.log("[EXTRACT] No embedded text found by pdfjs-dist. Falling back to Gemini Vision OCR...");
+      try {
+        var ocrPrompt = "You are an expert document OCR transcriber. Transcribe this scanned PDF document page by page into clear Markdown text. Include page markers like '--- Page X ---' before each page's content. Transcribe all text, tables, diagrams, and handwriting accurately without skipping any details.";
+        var transcribedText = await llm.generateFromDocument(fileBuffer, ocrPrompt, "application/pdf", "scannedPdfOcr");
+        
+        if (transcribedText && transcribedText.trim().length > 0) {
+          fullText = transcribedText.trim();
+          var pageBlocks = fullText.split(/--- Page \d+ ---/i).map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
+          if (pageBlocks.length > 0) {
+            pages = pageBlocks.map(function(block, idx) {
+              return { page: idx + 1, text: block };
+            });
+            numPages = pages.length;
+          } else {
+            pages = [{ page: 1, text: fullText }];
+            numPages = 1;
+          }
+        }
+      } catch (ocrError) {
+        console.error("[EXTRACT] Gemini Vision OCR fallback failed:", ocrError);
+      }
+    }
+
+    if (pages.length === 0) {
+      return new Response(JSON.stringify({ error: "No text could be extracted from PDF (even with AI Vision)." }), {
         status: 422,
         headers: { "content-type": "application/json" }
       });

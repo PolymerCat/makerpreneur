@@ -65,13 +65,21 @@ export default function QuizzesPage() {
         title: quizTitle
       });
       for (var i = 0; i < questions.length; i++) {
+        var rubricVal = "";
+        if (questions[i].kind === "mcq" || questions[i].kind === "tf") {
+          if (questions[i].explanations) {
+            rubricVal = JSON.stringify(questions[i].explanations);
+          }
+        } else {
+          rubricVal = questions[i].rubric || "";
+        }
         await db.insert("questions", {
           quizId: quiz.id,
           kind: questions[i].kind,
           prompt: questions[i].prompt,
           options: questions[i].options || [],
           answer: questions[i].answer,
-          rubric: questions[i].rubric || ""
+          rubric: rubricVal
         });
       }
       var allQuizzes = await db.listAll("quizzes", null, null);
@@ -109,31 +117,34 @@ export default function QuizzesPage() {
           label="Source materials"
         />
         <div className="generate-controls">
-          <label>
-            Quiz name:
+          <div className="form-group">
+            <label htmlFor="quiz-name">Quiz Name</label>
             <input
+              id="quiz-name"
               type="text"
               value={quizName}
               onChange={function(e) { setQuizName(e.target.value); }}
-              placeholder="My Quiz"
+              placeholder="e.g. QoS & QoE Practice Quiz"
             />
-          </label>
-          <label>
-            Questions: {questionCount}
+          </div>
+          <div className="form-group">
+            <label htmlFor="question-count">Questions: <strong>{questionCount}</strong></label>
             <input
+              id="question-count"
               type="range"
               min={5}
               max={30}
               value={questionCount}
               onChange={function(e) { setQuestionCount(parseInt(e.target.value, 10)); }}
             />
-          </label>
+          </div>
           <button
-            className="btn btn-primary"
+            type="button"
+            className="btn btn-primary generate-btn"
             onClick={handleGenerate}
             disabled={selectedIds.length === 0 || generating}
           >
-            {generating ? "Generating..." : "Generate"}
+            {generating ? "Generating..." : "Generate Quiz"}
           </button>
         </div>
       </Card>
@@ -151,8 +162,8 @@ export default function QuizzesPage() {
               <div key={quiz.id} className="quiz-card">
                 <h4>{quiz.title}</h4>
                 <p className="quiz-meta">From: {sourceName}</p>
-                <p className="quiz-meta">{qCount} questions</p>
-                <Link href={"/study/quizzes/" + quiz.id} className="btn btn-primary">
+                <p className="quiz-meta" style={{ marginBottom: "14px" }}>{qCount} questions</p>
+                <Link href={"/study/quizzes/" + quiz.id} className="btn btn-primary btn-sm">
                   Take Quiz
                 </Link>
               </div>

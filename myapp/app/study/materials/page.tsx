@@ -182,7 +182,7 @@ export default function MaterialsPage() {
       await loadMaterials();
 
       try {
-        await db.uploadFile("materials", storagePath, arrayBuffer);
+        await db.uploadFile("materials", storagePath, arrayBuffer, fileType);
       } catch (uploadErr) {
         throw new Error("Upload failed: " + String(uploadErr));
       }

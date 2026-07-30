@@ -15,8 +15,7 @@ var FEATURES = [
   { href: "/study/summaries", icon: "ti-notes", label: "Summaries", desc: "Generate AI summaries" },
   { href: "/study/flashcards", icon: "ti-cards", label: "Flashcards", desc: "Create and review flashcards" },
   { href: "/study/quizzes", icon: "ti-quiz", label: "Quizzes", desc: "Practice with AI-generated quizzes" },
-  { href: "/study/papers", icon: "ti-books", label: "Papers", desc: "Browse past exam papers" },
-  { href: "/study/predictor", icon: "ti-crystal-ball", label: "Predictor", desc: "AI exam question predictions" },
+  { href: "/study/papers", icon: "ti-books", label: "Papers", desc: "Browse past exam papers and predict exam questions" },
   { href: "/study/path", icon: "ti-map-2", label: "Study Path", desc: "Generate study plans" },
   { href: "/study/planner", icon: "ti-calendar", label: "Planner", desc: "Weekly schedule planner" }
 ];

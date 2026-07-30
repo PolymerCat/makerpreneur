@@ -23,13 +23,17 @@ async function retrieveChunks(
   return chunkTexts;
 }
 
-export default function MaterialDetailPage(props: { params: { id: string } }) {
-  var materialId = props.params.id;
+export default function MaterialDetailPage(props: { params: Promise<{ id: string }> }) {
+  var params = React.use(props.params);
+  var materialId = params.id;
   var [material, setMaterial] = React.useState<Material | null>(null);
   var [chunks, setChunks] = React.useState<Chunk[]>([]);
   var [tab, setTab] = React.useState("chunks");
 
   React.useEffect(function() {
+    if (!materialId) {
+      return;
+    }
     (async function() {
       var mat = await db.getById("materials", materialId);
       setMaterial(mat);

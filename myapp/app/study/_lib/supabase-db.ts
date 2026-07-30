@@ -469,9 +469,10 @@ async function renameConversation(id: string, title: string) {
 
 /* --- Storage helpers --- */
 
-async function uploadFile(bucket: string, path: string, file: Blob | ArrayBuffer): Promise<string> {
+async function uploadFile(bucket: string, path: string, file: Blob | ArrayBuffer, contentType?: string): Promise<string> {
   var client = getClient();
   var { data, error } = await client.storage.from(bucket).upload(path, file, {
+    contentType: contentType,
     upsert: true
   });
   if (error || !data) {

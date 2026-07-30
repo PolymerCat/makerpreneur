@@ -54,15 +54,27 @@ function flashcardsPrompt(fullText: string, language: string, cardCount: number)
 function quizPrompt(fullText: string, language: string, questionCount: number): string {
   var langInstruction = "";
   if (language === "ms") {
-    langInstruction = "Create quiz questions in Bahasa Melayu.";
+    langInstruction = "Create quiz questions in Bahasa Melayu. Write all prompt texts, options, answers, and explanations in Bahasa Melayu.";
   } else {
-    langInstruction = "Create quiz questions in English.";
+    langInstruction = "Create quiz questions in English. Write all prompt texts, options, answers, and explanations in English.";
   }
-  return "Create " + questionCount + " quiz questions from the following text.\n" +
+  return "Create " + questionCount + " quiz questions based strictly on the provided text.\n" +
     langInstruction + "\n" +
     "Include a mix of multiple-choice (mcq), true-false (tf), and essay questions.\n" +
-    "Return JSON: { questions: [{ kind: 'mcq'|'tf'|'essay', prompt: string, options: string[]|null, answer: string, rubric: string|null }] }\n" +
-    "For mcq, provide 4 options. For tf, provide options: ['True', 'False']. For essay, options is null and rubric is the marking guide.\n\nTEXT:\n" + fullText;
+    "Return JSON: {\n" +
+    "  \"questions\": [{\n" +
+    "    \"kind\": \"mcq\" | \"tf\" | \"essay\",\n" +
+    "    \"prompt\": string,\n" +
+    "    \"options\": string[] | null,\n" +
+    "    \"answer\": string,\n" +
+    "    \"explanations\": Record<string, string> | null,\n" +
+    "    \"rubric\": string | null\n" +
+    "  }]\n" +
+    "}\n" +
+    "REQUIREMENTS FOR EXPLANATIONS:\n" +
+    "- For mcq: 'options' has 4 choices. 'answer' must be the exact string of the correct choice. 'explanations' MUST be an object where EVERY key is the EXACT string from 'options', and the value is a 1-sentence concise explanation based on the source text explaining why that choice is correct or why it is incorrect.\n" +
+    "- For tf: 'options' is ['True', 'False']. 'answer' is 'True' or 'False'. 'explanations' MUST be an object with keys 'True' and 'False', each mapped to a 1-sentence concise explanation based on the source text.\n" +
+    "- For essay: options is null, explanations is null, rubric is the grading key.\n\nTEXT:\n" + fullText;
 }
 
 function essayGradePrompt(question: string, rubric: string, studentAnswer: string): string {
@@ -79,21 +91,20 @@ function translatePrompt(fullText: string, targetLanguage: string): string {
 }
 
 function predictorPrompt(
-  styleData: string,
+  materialContent: string,
   courseName: string,
   language: string
 ): string {
-  var langInstruction = "";
-  if (language === "ms") {
-    langInstruction = "Generate questions in Bahasa Melayu.";
-  } else {
-    langInstruction = "Generate questions in English.";
-  }
-  return "You are an exam predictor for " + courseName + ".\n" +
-    "Based on the following analysis of past exam papers, predict likely exam questions.\n" +
+  var langInstruction = language === "ms" ? "Generate questions in Bahasa Melayu." : "Generate questions in English.";
+  var textSnippet = materialContent.length > 16000 ? materialContent.substring(0, 16000) + "\n...[truncated]" : materialContent;
+
+  return "You are an expert exam question predictor for the course: " + courseName + ".\n" +
+    "Analyze the following source exam papers/study material content carefully:\n\n" +
+    "--- MATERIAL START ---\n" + textSnippet + "\n--- MATERIAL END ---\n\n" +
+    "Based strictly on the course material above, identify the core technical topics, patterns, and question styles. " +
+    "Predict 4 to 6 highly probable exam questions (with comprehensive model answers and mark allocations) that test key concepts from this material.\n" +
     langInstruction + "\n" +
-    "Topic frequencies and style guide:\n" + styleData + "\n\n" +
-    "Return a JSON array of { question: string, modelAnswer: string, marks: number, probability: 'high'|'medium'|'low' }";
+    "Return JSON array: [{ \"question\": string, \"modelAnswer\": string, \"marks\": number, \"probability\": \"high\"|\"medium\"|\"low\" }]";
 }
 
 function studyPathPrompt(

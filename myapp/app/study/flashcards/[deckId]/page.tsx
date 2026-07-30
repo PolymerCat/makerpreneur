@@ -9,13 +9,17 @@ import { db } from "../../_lib/db";
 import type { Deck, Card as CardType } from "../../_lib/types";
 import FlashcardReview from "../../_components/FlashcardReview";
 
-export default function DeckReviewPage(props: { params: { deckId: string } }) {
-  var deckId = props.params.deckId;
+export default function DeckReviewPage(props: { params: Promise<{ deckId: string }> }) {
+  var params = React.use(props.params);
+  var deckId = params.deckId;
   var [deck, setDeck] = React.useState<Deck | null>(null);
   var [cards, setCards] = React.useState<CardType[]>([]);
   var [focusMode, setFocusMode] = React.useState(false);
 
   async function loadData(): Promise<void> {
+    if (!deckId) {
+      return;
+    }
     var d = await db.getById("decks", deckId);
     setDeck(d);
     var allCards = await db.listAll("cards", { deckId: deckId }, null);
@@ -30,6 +34,9 @@ export default function DeckReviewPage(props: { params: { deckId: string } }) {
   }
 
   React.useEffect(function() {
+    if (!deckId) {
+      return;
+    }
     (async function() {
       await loadData();
     })();
@@ -89,6 +96,8 @@ export default function DeckReviewPage(props: { params: { deckId: string } }) {
         <FlashcardReview
           cards={cards}
           onUpdateCard={handleUpdateCard}
+          focusMode={focusMode}
+          onExitFocusMode={function() { setFocusMode(false); }}
         />
       </Card>
     </AppShell>

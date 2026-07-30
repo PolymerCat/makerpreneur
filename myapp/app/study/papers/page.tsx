@@ -10,6 +10,8 @@ import { aiPredictQuestions } from "../actions";
 import { useCourse } from "../_lib/CourseProvider";
 import { CoursePicker } from "../_components/CoursePicker";
 import { CourseBar } from "../_components/CourseBar";
+import SourceSelector from "../_components/SourceSelector";
+import LanguageToggle from "../_components/LanguageToggle";
 
 export default function PapersPage() {
   var { activeCourse } = useCourse();
@@ -19,118 +21,233 @@ export default function PapersPage() {
   }
   var courseId = activeCourse.id;
 
-  var [papers, setPapers] = React.useState<Material[]>([]);
-  var [selectedPaperId, setSelectedPaperId] = React.useState("");
-  var [analyzing, setAnalyzing] = React.useState(false);
+  var [allMaterials, setAllMaterials] = React.useState<Material[]>([]);
+  var [materials, setMaterials] = React.useState<Material[]>([]);
+  var [selectedIds, setSelectedIds] = React.useState<string[]>([]);
+  var [filter, setFilter] = React.useState("exam_paper");
   var [predictions, setPredictions] = React.useState<any[]>([]);
-  var [activePrediction, setActivePrediction] = React.useState<string>("");
+  var [savedPredictions, setSavedPredictions] = React.useState<Prediction[]>([]);
+  var [activePredictionId, setActivePredictionId] = React.useState("");
+  var [analyzing, setAnalyzing] = React.useState(false);
+  var [language, setLanguage] = React.useState("en");
+  var [activePrediction, setActivePrediction] = React.useState<Prediction | null>(null);
+
+  function applyFilter(all: Material[], f: string): Material[] {
+    if (f === "exam_paper") {
+      return all.filter(function(m) { return m.category === "exam_paper"; });
+    }
+    return all;
+  }
 
   React.useEffect(function() {
     (async function() {
-      var examPapers = await db.listAll("materials", { category: "exam_paper", courseId: courseId }, "title");
-      var regularPapers = await db.listAll("materials", { category: "regular", courseId: courseId }, "title");
-      setPapers(examPapers.concat(regularPapers));
+      var allMats = await db.listAll("materials", { status: "ready", courseId: courseId }, "title");
+      setAllMaterials(allMats);
+      setMaterials(applyFilter(allMats, filter));
+      var allPreds = await db.listAll("predictions", { courseId: courseId }, null);
+      setSavedPredictions(allPreds);
     })();
-  }, []);
+  }, [courseId]);
+
+  function handleFilterChange(f: string): void {
+    setFilter(f);
+    setMaterials(applyFilter(allMaterials, f));
+    setSelectedIds([]);
+  }
 
   async function handleAnalyze(): Promise<void> {
-    if (selectedPaperId === "") {
-      return;
-    }
     setAnalyzing(true);
     try {
-      var allText = await db.materialText([selectedPaperId]);
-      var topicFreq = "Topics: biology, cells, DNA (high frequency), mitochondria, membrane (medium frequency)";
-      var courseName = "Demo Course";
-      var predicted = await aiPredictQuestions(topicFreq, courseName, "en");
+      var allText = "";
+      for (var i = 0; i < selectedIds.length; i++) {
+        allText = allText + (await db.materialText([selectedIds[i]])) + "\n\n";
+      }
+      var courseTitle = activeCourse?.name || "Exam Course";
+      var predicted = await aiPredictQuestions(allText, courseTitle, language);
       setPredictions(predicted);
-      await db.insert("predictions", {
+      var pred = await db.insert("predictions", {
         courseId: courseId,
         createdAt: new Date().toISOString(),
         freqJson: JSON.stringify({}),
         questionsJson: JSON.stringify(predicted),
         studiedIds: JSON.stringify([])
       });
+      var allPreds = await db.listAll("predictions", { courseId: courseId }, null);
+      setSavedPredictions(allPreds);
     } catch (err) {
-      console.error("Analysis failed", err);
+      console.error("Prediction failed", err);
     }
     setAnalyzing(false);
   }
 
-  var filteredPapers = papers.filter(function(p: Material) {
-    return p.category === "exam_paper";
-  });
+  async function handleSelectSaved(predictionId: string): Promise<void> {
+    setActivePredictionId(predictionId);
+    var pred = await db.getById("predictions", predictionId);
+    setActivePrediction(pred);
+    if (pred) {
+      try {
+        var qs = JSON.parse(pred.questionsJson);
+        setPredictions(qs);
+      } catch (_e) {
+        setPredictions([]);
+      }
+    }
+  }
+
+  async function handleDeletePrediction(predictionId: string): Promise<void> {
+    if (!window.confirm("Delete this prediction?")) {
+      return;
+    }
+    await db.delete("predictions", predictionId);
+    var allPreds = await db.listAll("predictions", { courseId: courseId }, null);
+    setSavedPredictions(allPreds);
+    if (activePredictionId === predictionId) {
+      setActivePredictionId("");
+      setActivePrediction(null);
+      setPredictions([]);
+    }
+  }
+
+  async function handleToggleStudied(index: number): Promise<void> {
+    if (activePredictionId === "") {
+      return;
+    }
+    var pred = await db.getById("predictions", activePredictionId);
+    if (!pred) {
+      return;
+    }
+    var studiedIds: string[] = [];
+    try {
+      studiedIds = JSON.parse(pred.studiedIds || "[]");
+    } catch (_e) {
+    }
+    var idxStr = String(index);
+    var found = false;
+    var newStudied: string[] = [];
+    for (var i = 0; i < studiedIds.length; i++) {
+      if (studiedIds[i] === idxStr) {
+        found = true;
+      } else {
+        newStudied.push(studiedIds[i]);
+      }
+    }
+    if (!found) {
+      newStudied.push(idxStr);
+    }
+    await db.update("predictions", activePredictionId, { studiedIds: JSON.stringify(newStudied) });
+    var updatedPred = { ...pred, studiedIds: JSON.stringify(newStudied) };
+    setActivePrediction(updatedPred);
+  }
+
+  var studiedIds: string[] = [];
+  if (activePrediction) {
+    try {
+      studiedIds = JSON.parse(activePrediction.studiedIds || "[]");
+    } catch (_e) {
+    }
+  }
 
   return (
     <AppShell>
       <PageHero
         eyebrow="Study"
-        title="Papers"
-        description="Browse past exam papers and predict future questions"
+        title="Papers & Exam Predictions"
+        description="Browse past exam papers and predict exam questions using AI"
         icon="ti-books"
       />
       <CourseBar />
 
       <Card>
-        <h3>Browse Exam Papers</h3>
-        {filteredPapers.length === 0 ? (
-          <p className="empty-state">
-            No exam papers yet. Upload materials with category "Exam Paper" from the Materials page.
-          </p>
-        ) : null}
-        <div className="paper-list">
-          {filteredPapers.map(function(paper: Material) {
-            return (
-              <div key={paper.id} className="paper-row">
-                <strong>{paper.title}</strong>
-                <span className="paper-meta">{paper.year} / Sem {paper.semester}</span>
-                <span className="status-badge status-ready">{paper.status}</span>
-              </div>
-            );
-          })}
+        <h3>Source Materials</h3>
+        <div className="tab-bar">
+          <button className={"tab" + (filter === "exam_paper" ? " active" : "")} onClick={function() { handleFilterChange("exam_paper"); }}>
+            Exam Papers
+          </button>
+          <button className={"tab" + (filter === "all" ? " active" : "")} onClick={function() { handleFilterChange("all"); }}>
+            All Materials
+          </button>
         </div>
-      </Card>
-
-      <Card>
-        <h3>Analyze & Predict</h3>
-        <div className="analyze-controls">
-          <select value={selectedPaperId} onChange={function(e) { setSelectedPaperId(e.target.value); }}>
-            <option value="">Select a paper to analyze</option>
-            {papers.map(function(p: Material) {
-              return <option key={p.id} value={p.id}>{p.title}</option>;
-            })}
-          </select>
+        <SourceSelector
+          materials={materials}
+          selectedIds={selectedIds}
+          onSelectionChange={setSelectedIds}
+          label="Select Materials to Analyze"
+        />
+        <div className="predictor-controls">
+          <LanguageToggle currentLanguage={language} onToggle={setLanguage} />
           <button
             className="btn btn-primary"
             onClick={handleAnalyze}
-            disabled={selectedPaperId === "" || analyzing}
+            disabled={selectedIds.length === 0 || analyzing}
           >
-            {analyzing ? "Analyzing..." : "Analyze & Predict"}
+            {analyzing ? "Analyzing..." : "Predict Questions"}
           </button>
         </div>
+      </Card>
 
-        {predictions.length > 0 ? (
-          <div className="prediction-list">
-            <h4>Predicted Questions</h4>
+      {savedPredictions.length > 0 ? (
+        <Card>
+          <h3>Saved Predictions</h3>
+          <div className="saved-predictions">
+            {savedPredictions.map(function(pred: Prediction) {
+              var qCount = 0;
+              try { qCount = JSON.parse(pred.questionsJson).length; } catch (_e) {}
+              return (
+                <div key={pred.id} className={"saved-prediction" + (activePredictionId === pred.id ? " active" : "")}>
+                  <button className="btn btn-sm" onClick={function() { handleSelectSaved(pred.id); }}>
+                    {new Date(pred.createdAt).toLocaleDateString()} — {qCount} questions
+                  </button>
+                  <button className="btn btn-sm btn-ghost" onClick={function() { handleDeletePrediction(pred.id); }}>
+                    Delete
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      ) : null}
+
+      {predictions.length > 0 ? (
+        <Card>
+          <h3>Predicted Questions</h3>
+          <div className="predictions-summary">
+            <span className="prob-high">● High</span>
+            <span className="prob-medium">● Medium</span>
+            <span className="prob-low">● Low</span>
+          </div>
+          <div className="predictions-list">
             {predictions.map(function(pred: any, idx: number) {
+              var isStudied = false;
+              for (var i = 0; i < studiedIds.length; i++) {
+                if (studiedIds[i] === String(idx)) {
+                  isStudied = true;
+                  break;
+                }
+              }
               var probClass = "prob-" + (pred.probability || "medium");
               return (
-                <div key={idx} className="prediction-item">
-                  <div className="prediction-header">
+                <div key={idx} className={"prediction-card" + (isStudied ? " studied" : "")}>
+                  <div className="prediction-card-header">
                     <span className={"probability-dot " + probClass}></span>
                     <strong>Q{idx + 1}: {pred.question}</strong>
-                    <span className="marks-badge">{pred.marks || 0} marks</span>
+                    <span className="marks-badge">{pred.marks || "?"} marks</span>
                   </div>
                   <details>
                     <summary>Model Answer</summary>
                     <p>{pred.modelAnswer || "N/A"}</p>
                   </details>
+                  <button
+                    className={"btn btn-sm " + (isStudied ? "btn-ghost" : "btn-primary")}
+                    onClick={function() { handleToggleStudied(idx); }}
+                  >
+                    {isStudied ? "Marked Studied" : "Mark as Studied"}
+                  </button>
                 </div>
               );
             })}
           </div>
-        ) : null}
-      </Card>
+        </Card>
+      ) : null}
     </AppShell>
   );
 }

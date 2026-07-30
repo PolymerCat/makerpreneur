@@ -138,16 +138,13 @@ export async function POST(request: Request) {
       } catch (err: unknown) {
         var msg = String(err);
         lastError = msg;
-        console.log("[GEMINI] " + model + " failed: " + msg.slice(0, 100));
-        var status = (err as Record<string, unknown>).status || (err as Record<string, unknown>).code || 0;
-        if (Number(status) !== 429 && Number(status) !== 503) {
-          break;
-        }
+        console.error("[GEMINI] " + model + " failed:", err);
       }
     }
 
     if (!stream) {
-      throw new Error("All models exhausted. Last error: " + lastError);
+      console.error("[GEMINI] All models exhausted for chat. Last error:", lastError);
+      throw new Error("AI service is temporarily unavailable. Please try again later.");
     }
 
     var encoder = new TextEncoder();
@@ -162,7 +159,8 @@ export async function POST(request: Request) {
           }
           controller.close();
         } catch (err) {
-          controller.enqueue(encoder.encode("\n\nError: " + String(err)));
+          console.error("[GEMINI] stream error:", err);
+          controller.enqueue(encoder.encode("\n\nAI service is temporarily unavailable. Please try again later."));
           controller.close();
         }
       }
@@ -176,7 +174,7 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     console.error("chat route error:", err);
-    return new Response(JSON.stringify({ error: String(err) }), {
+    return new Response(JSON.stringify({ error: "AI service is temporarily unavailable. Please try again later." }), {
       status: 500,
       headers: { "content-type": "application/json" }
     });

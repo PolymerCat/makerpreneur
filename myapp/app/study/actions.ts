@@ -31,7 +31,7 @@ export async function aiMakeQuiz(
   fullText: string,
   language: string,
   questionCount: number
-): Promise<{ kind: string; prompt: string; options: string[] | null; answer: string; rubric: string | null }[]> {
+): Promise<{ kind: string; prompt: string; options: string[] | null; answer: string; rubric: string | null; explanations?: Record<string, string> | null }[]> {
   var count = questionCount || DEFAULT_QUESTION_COUNT;
   var prompt = prompts.quizPrompt(fullText, language, count);
   var result = await llm.generateJson(prompt, 0.4, 16000, "quiz");

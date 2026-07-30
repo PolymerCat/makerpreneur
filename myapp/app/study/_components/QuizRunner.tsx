@@ -3,6 +3,46 @@
 import React from "react";
 import type { Question } from "../_lib/types";
 
+function getOptionExplanation(question: Question, opt: string, idx: number): string {
+  if (!question.explanations) {
+    return opt === question.answer ? "Correct choice based on the material." : "Incorrect choice based on the material.";
+  }
+  var exp: any = question.explanations;
+  if (typeof exp === "string") {
+    return exp;
+  }
+  if (Array.isArray(exp)) {
+    if (exp[idx]) return String(exp[idx]);
+  }
+  if (typeof exp === "object" && exp !== null) {
+    if (exp[opt]) return String(exp[opt]);
+
+    var keys = Object.keys(exp);
+    for (var i = 0; i < keys.length; i++) {
+      if (keys[i].trim().toLowerCase() === opt.trim().toLowerCase()) {
+        return String(exp[keys[i]]);
+      }
+    }
+
+    var letter = String.fromCharCode(65 + idx);
+    var num = String(idx + 1);
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i].trim().toUpperCase();
+      if (k === letter || k === "OPTION " + letter || k === "OPTION" + letter || k === num || k === "OPTION " + num) {
+        return String(exp[keys[i]]);
+      }
+    }
+
+    for (var i = 0; i < keys.length; i++) {
+      if (opt.toLowerCase().includes(keys[i].trim().toLowerCase()) || keys[i].toLowerCase().includes(opt.trim().toLowerCase())) {
+        return String(exp[keys[i]]);
+      }
+    }
+  }
+
+  return opt === question.answer ? "Correct choice based on the material." : "Incorrect choice based on the material.";
+}
+
 function QuizRunner(props: {
   questions: Question[];
   onSubmit: (answers: { questionId: string; answer: string }[]) => void;
@@ -98,7 +138,29 @@ function QuizRunner(props: {
               <p><strong>{q.prompt}</strong></p>
               <p>Your answer: {answers[q.id] || "(empty)"}</p>
               {q.kind !== "essay" ? (
-                <p>Correct answer: {q.answer}</p>
+                <>
+                  <p>Correct answer: {q.answer}</p>
+                  <div className="option-explanations" style={{ marginTop: "10px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <strong>Explanations:</strong>
+                    {(q.options || (q.kind === "tf" ? ["True", "False"] : [])).map(function(opt: string, idx: number) {
+                      var isOptCorrect = opt === q.answer;
+                      var isOptSelected = answers[q.id] === opt;
+                      var optExp = getOptionExplanation(q, opt, idx);
+                      return (
+                        <div key={idx} style={{
+                          padding: "6px 10px",
+                          borderRadius: "4px",
+                          fontSize: "13px",
+                          background: isOptCorrect ? "#ecfdf5" : isOptSelected ? "#fef2f2" : "var(--surface-2)",
+                          borderLeft: "3px solid " + (isOptCorrect ? "#10b981" : isOptSelected ? "#ef4444" : "var(--border)"),
+                          color: isOptCorrect ? "#065f46" : isOptSelected ? "#991b1b" : "var(--text)"
+                        }}>
+                          <strong>{opt} {isOptCorrect ? " (Correct)" : isOptSelected ? " (Your Selection)" : ""}</strong>: {optExp}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
               ) : null}
               {qResult.feedback ? (
                 <p className="feedback">Feedback: {qResult.feedback}</p>
@@ -140,21 +202,40 @@ function QuizRunner(props: {
         })}
       </div>
       <div className="question-card">
-        <p className="question-kind">({question.kind.toUpperCase()})</p>
+        <span className="question-kind-badge">{question.kind.toUpperCase()}</span>
         <p className="question-prompt">{question.prompt}</p>
         {question.kind === "mcq" ? (
           <div className="mcq-options">
             {(question.options || []).map(function(opt: string, idx: number) {
               var isSelected = answers[question.id] === opt;
+              var hasAnswered = !!answers[question.id];
+              var isCorrectOption = opt === question.answer;
+              
+              var className = "mcq-option";
+              if (hasAnswered) {
+                if (isCorrectOption) {
+                  className += " is-correct";
+                } else if (isSelected) {
+                  className += " is-incorrect";
+                }
+              } else if (isSelected) {
+                className += " selected";
+              }
+
               return (
-                <label key={idx} className={"mcq-option" + (isSelected ? " selected" : "")}>
+                <label key={idx} className={className}>
+                  <span className="option-text">{opt}</span>
                   <input
                     type="radio"
                     name={"q_" + question.id}
                     checked={isSelected}
-                    onChange={function() { handleAnswer(question.id, opt); }}
+                    disabled={hasAnswered}
+                    onChange={function() {
+                      if (!hasAnswered) {
+                        handleAnswer(question.id, opt);
+                      }
+                    }}
                   />
-                  {" " + opt}
                 </label>
               );
             })}
@@ -163,15 +244,34 @@ function QuizRunner(props: {
           <div className="tf-options">
             {["True", "False"].map(function(opt: string, idx: number) {
               var isSelected = answers[question.id] === opt;
+              var hasAnswered = !!answers[question.id];
+              var isCorrectOption = opt === question.answer;
+              
+              var className = "tf-option";
+              if (hasAnswered) {
+                if (isCorrectOption) {
+                  className += " is-correct";
+                } else if (isSelected) {
+                  className += " is-incorrect";
+                }
+              } else if (isSelected) {
+                className += " selected";
+              }
+
               return (
-                <label key={idx} className={"tf-option" + (isSelected ? " selected" : "")}>
+                <label key={idx} className={className}>
+                  <span className="option-text">{opt}</span>
                   <input
                     type="radio"
                     name={"q_" + question.id}
                     checked={isSelected}
-                    onChange={function() { handleAnswer(question.id, opt); }}
+                    disabled={hasAnswered}
+                    onChange={function() {
+                      if (!hasAnswered) {
+                        handleAnswer(question.id, opt);
+                      }
+                    }}
                   />
-                  {" " + opt}
                 </label>
               );
             })}
@@ -186,6 +286,27 @@ function QuizRunner(props: {
             />
           </div>
         ) : null}
+
+        {!!answers[question.id] && (question.kind === "mcq" || question.kind === "tf") && (
+          <div className="instant-feedback">
+            <div className={"feedback-header " + (answers[question.id] === question.answer ? "correct" : "incorrect")}>
+              {answers[question.id] === question.answer ? "✓ Correct!" : "✗ Incorrect"}
+            </div>
+            <div className="option-explanations">
+              <h4>Option Explanations:</h4>
+              {(question.options || (question.kind === "tf" ? ["True", "False"] : [])).map(function(opt: string, idx: number) {
+                var isOptCorrect = opt === question.answer;
+                var isOptSelected = answers[question.id] === opt;
+                var optExp = getOptionExplanation(question, opt, idx);
+                return (
+                  <div key={idx} className={"explanation-item " + (isOptCorrect ? "correct-opt" : isOptSelected ? "selected-opt" : "")}>
+                    <strong>{opt} {isOptCorrect ? " (Correct)" : isOptSelected ? " (Your Selection)" : ""}</strong>: {optExp}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
       <div className="quiz-nav-buttons">
         <button className="btn" onClick={handlePrev} disabled={currentIndex === 0}>
