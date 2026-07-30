@@ -51,3 +51,13 @@ export type Resource = {
   meta: string;
   icon: string;
 };
+
+export type Subject = {
+  id: string;
+  subject_code: string;
+  subject_name: string;
+  description: string;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+};

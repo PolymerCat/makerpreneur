@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import { useEffect, useState } from "react";
 import { createBrowserClient } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
 import { getProfile, upsertProfile } from "@/lib/profile-store";
@@ -11,12 +11,12 @@ import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
 
 export default function ProfilePage() {
-  var supabase = createBrowserClient();
-  var [session, setSession] = React.useState<{ email: string; id: string } | null>(null);
-  var [profile, setProfile] = React.useState<{ id: string; full_name: string } | null>(null);
-  var [fullName, setFullName] = React.useState("");
-  var [supaRows, setSupaRows] = React.useState(0);
-  var [saved, setSaved] = React.useState(false);
+  const supabase = createBrowserClient();
+  const session = getSession();
+  const [profile, setProfile] = useState(getProfile(session?.id ?? ""));
+  const [fullName, setFullName] = useState(profile?.full_name ?? "");
+  const [supaRows, setSupaRows] = useState(0);
+  const [saved, setSaved] = useState(false);
 
   React.useEffect(function() {
     getSession().then(function(s) {
@@ -35,10 +35,8 @@ export default function ProfilePage() {
   }, [supabase]);
 
   function handleSave() {
-    if (!session) {
-      return;
-    }
-    var updated = upsertProfile(session.id, fullName);
+    if (!session) return;
+    const updated = upsertProfile(session.id, fullName);
     setProfile(updated);
     setSaved(true);
     setTimeout(function() { setSaved(false); }, 2000);
@@ -48,41 +46,67 @@ export default function ProfilePage() {
     <AppShell>
       <PageHero
         eyebrow="Profile"
-        title={profile?.full_name || session?.email || "Profile"}
-        description="Edit your profile. Data is stored locally and mapped to the Supabase profiles table schema."
+        title={profile?.full_name || user?.email || "Profile"}
+        description="Edit your profile. Changes are synced to the Supabase profiles table."
         icon="ti-user"
       />
 
       <section className="two-column">
         <Card>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div className="form-stack">
             <div>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 800, color: "var(--muted)", marginBottom: 4 }}>Email</label>
-              <p style={{ margin: 0, fontSize: 14 }}>{session?.email ?? "—"}</p>
+              <label>Email</label>
+              <p style={{ margin: "7px 0 0", fontSize: 14 }}>{user?.email ?? "—"}</p>
             </div>
             <div>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 800, color: "var(--muted)", marginBottom: 4 }}>User ID</label>
-              <code style={{ fontSize: 12 }}>{session?.id ?? "—"}</code>
+              <label>User ID</label>
+              <code style={{ fontSize: 12, display: "block", marginTop: 7 }}>{user?.id ?? "—"}</code>
+            </div>
+            <div>
+              <label htmlFor="fullName">Full name</label>
+              <input id="fullName" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Your display name" />
             </div>
             <div>
               <label style={{ display: "block", fontSize: 12, fontWeight: 800, color: "var(--muted)", marginBottom: 4 }}>Full name</label>
               <input
                 value={fullName}
-                onChange={function(e) { setFullName(e.target.value); }}
+                onChange={e => setFullName(e.target.value)}
                 placeholder="Your display name"
                 style={{ marginTop: 0 }}
               />
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={handleSave}
-                style={{ border: 0, cursor: "pointer" }}
+            <div>
+              <label htmlFor="lang">Preferred language</label>
+              <select
+                id="lang"
+                value={preferredLanguage}
+                onChange={e => setPreferredLanguage(e.target.value as "en" | "bm")}
+                style={{
+                  width: "100%",
+                  height: 44,
+                  border: "1px solid var(--line)",
+                  borderRadius: "var(--radius)",
+                  padding: "0 12px",
+                  fontSize: 14,
+                  background: "var(--surface)",
+                  marginTop: 7,
+                }}
               >
+                <option value="en">English</option>
+                <option value="bm">Bahasa Melayu</option>
+              </select>
+            </div>
+            <div>
+              <label>Role</label>
+              <p style={{ margin: "7px 0 0", fontSize: 14 }}>
+                <Badge tone="brand">Student</Badge>
+              </p>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
+              <button className="secondary-button" type="button" onClick={handleSave} style={{ border: 0, cursor: "pointer" }}>
                 <Icon name="ti-device-floppy" /> Save
               </button>
-              {saved ? <Badge tone="success">Saved locally</Badge> : null}
+              {saved && <Badge tone="success">Saved locally</Badge>}
             </div>
           </div>
         </Card>
@@ -99,11 +123,11 @@ export default function ProfilePage() {
               <span style={{ fontSize: 13, color: "var(--muted)" }}>public.profiles</span>
             </div>
             <p style={{ margin: 0, fontSize: 13, color: "var(--muted)", lineHeight: 1.5 }}>
-              Table schema: <code>id (uuid)</code>, <code>full_name (text)</code>, <code>created_at</code>, <code>updated_at</code>.
+              Table schema: <code>id (uuid)</code>, <code>full_name (text)</code>, <code>matric_number (text)</code>,{" "}
+              <code>preferred_language (text)</code>, <code>role (text)</code>, <code>created_at</code>, <code>updated_at</code>.
             </p>
             <p style={{ margin: 0, fontSize: 13, color: "var(--muted)", lineHeight: 1.5 }}>
-              RLS requires <code>auth.uid() = id</code>. For prototype, data is stored locally with the same schema.
-              Turn off RLS in Supabase dashboard to persist directly.
+              Data is persisted via Supabase Auth + the profiles table. RLS policies grant access based on <code>auth.uid() = id</code>.
             </p>
           </div>
         </Card>
