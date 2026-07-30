@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React from "react";
 import { useRouter } from "next/navigation";
 import { signUp, signIn } from "@/lib/auth";
 import { Card } from "@/components/ui/Card";
@@ -9,27 +9,31 @@ import { Icon } from "@/components/ui/Icon";
 type AuthMode = "signin" | "signup";
 
 export default function AuthPage() {
-  const router = useRouter();
-  const [mode, setMode] = useState<AuthMode>("signin");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  var router = useRouter();
+  var [mode, setMode] = React.useState<AuthMode>("signin");
+  var [email, setEmail] = React.useState("");
+  var [password, setPassword] = React.useState("");
+  var [error, setError] = React.useState("");
+  var [loading, setLoading] = React.useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setLoading(true);
 
     try {
       if (mode === "signup") {
-        signUp(email, password);
+        await signUp(email, password);
       } else {
-        signIn(email, password);
+        await signIn(email, password);
       }
       router.push("/");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     }
+
+    setLoading(false);
   }
 
   return (
@@ -49,8 +53,8 @@ export default function AuthPage() {
             <input
               type="text"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Any email (prototype — no verification)"
+              onChange={function(e) { setEmail(e.target.value); }}
+              placeholder="Your email address"
               required
             />
           </label>
@@ -59,26 +63,26 @@ export default function AuthPage() {
             <input
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={function(e) { setPassword(e.target.value); }}
               placeholder="Min 6 characters"
               required
               minLength={6}
             />
           </label>
 
-          {error && (
+          {error ? (
             <p style={{ color: "var(--warning)", fontSize: 13, margin: 0 }}>{error}</p>
-          )}
+          ) : null}
 
-          <button className="secondary-button" type="submit">
+          <button className="secondary-button" type="submit" disabled={loading}>
             <Icon name={mode === "signin" ? "ti-login" : "ti-user-plus"} />
-            {mode === "signin" ? "Sign in" : "Create account"}
+            {loading ? "Please wait..." : (mode === "signin" ? "Sign in" : "Create account")}
           </button>
 
           <button
             className="button-link button-link-ghost"
             type="button"
-            onClick={() => {
+            onClick={function() {
               setMode(mode === "signin" ? "signup" : "signin");
               setError("");
             }}

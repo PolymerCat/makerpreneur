@@ -1,41 +1,67 @@
-import { ResourceList } from "@/components/domain/ResourceList";
-import { TaskList } from "@/components/domain/TaskList";
+"use client";
+
+import React from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHero } from "@/components/layout/PageHero";
-import { Card } from "@/components/ui/Card";
-import { SectionHeader } from "@/components/ui/SectionHeader";
-import { resources, tasks } from "@/lib/sample-data";
+import Link from "next/link";
+import { db } from "./_lib/db";
+import { useCourse } from "./_lib/CourseProvider";
+import { CoursePicker } from "./_components/CoursePicker";
+import { CourseBar } from "./_components/CourseBar";
+
+var FEATURES = [
+  { href: "/study/materials", icon: "ti-file-text", label: "Materials", desc: "Upload and index study materials" },
+  { href: "/study/chat", icon: "ti-message", label: "Chat", desc: "Ask questions about your materials" },
+  { href: "/study/summaries", icon: "ti-notes", label: "Summaries", desc: "Generate AI summaries" },
+  { href: "/study/flashcards", icon: "ti-cards", label: "Flashcards", desc: "Create and review flashcards" },
+  { href: "/study/quizzes", icon: "ti-quiz", label: "Quizzes", desc: "Practice with AI-generated quizzes" },
+  { href: "/study/papers", icon: "ti-books", label: "Papers", desc: "Browse past exam papers" },
+  { href: "/study/predictor", icon: "ti-crystal-ball", label: "Predictor", desc: "AI exam question predictions" },
+  { href: "/study/path", icon: "ti-map-2", label: "Study Path", desc: "Generate study plans" },
+  { href: "/study/planner", icon: "ti-calendar", label: "Planner", desc: "Weekly schedule planner" }
+];
 
 export default function StudyPage() {
+  var { activeCourse } = useCourse();
+
+  if (!activeCourse) {
+    return (
+      <AppShell>
+        <PageHero
+          eyebrow="Study"
+          title="Choose a course"
+          description="Select or create a course to get started with AI-powered study tools."
+          icon="ti-school"
+        />
+        <CoursePicker />
+      </AppShell>
+    );
+  }
+
+  var titleText = "AI Study Hub";
+  var descText = "RAG-powered study tools: chat with materials, flashcards, quizzes, and more";
+
   return (
     <AppShell>
       <PageHero
         eyebrow="Study"
-        title="Planner and resources"
-        description="A page-level composition for assignments, study materials, rooms, and future AI tools."
+        title={titleText}
+        description={descText}
         icon="ti-school"
       />
 
-      <section className="two-column">
-        <div>
-          <SectionHeader title="Planner" description="This list is ready to hydrate from a `tasks` table." icon="ti-calendar-check" />
-          <TaskList tasks={tasks} />
-        </div>
-        <div>
-          <SectionHeader title="Resource library" description="A reusable media-list pattern for files or links." icon="ti-books" />
-          <ResourceList resources={resources} />
-        </div>
-      </section>
+      <CourseBar />
 
-      <section className="responsive-grid">
-        <Card>
-          <h3>Study rooms</h3>
-          <p>Model rooms as records with host, capacity, privacy, and current participants.</p>
-        </Card>
-        <Card>
-          <h3>AI companion</h3>
-          <p>Keep the chat UI separate from data fetching so it can call API routes or Supabase Edge Functions later.</p>
-        </Card>
+      <section className="feature-grid">
+        {FEATURES.map(function(feature, index) {
+          return (
+            <Link key={index} href={feature.href} className="feature-card">
+              <i className={"ti " + feature.icon}></i>
+              <h3>{feature.label}</h3>
+              <p>{feature.desc}</p>
+            </Link>
+          );
+        })}
       </section>
     </AppShell>
   );

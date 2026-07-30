@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React from "react";
 import { createBrowserClient } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
 import { getProfile, upsertProfile } from "@/lib/profile-store";
@@ -11,25 +11,37 @@ import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
 
 export default function ProfilePage() {
-  const supabase = createBrowserClient();
-  const session = getSession();
-  const [profile, setProfile] = useState(getProfile(session?.id ?? ""));
-  const [fullName, setFullName] = useState(profile?.full_name ?? "");
-  const [supaRows, setSupaRows] = useState(0);
-  const [saved, setSaved] = useState(false);
+  var supabase = createBrowserClient();
+  var [session, setSession] = React.useState<{ email: string; id: string } | null>(null);
+  var [profile, setProfile] = React.useState<{ id: string; full_name: string } | null>(null);
+  var [fullName, setFullName] = React.useState("");
+  var [supaRows, setSupaRows] = React.useState(0);
+  var [saved, setSaved] = React.useState(false);
 
-  useEffect(() => {
-    supabase.from("profiles").select("id").then(({ data }) => {
-      setSupaRows(data?.length ?? 0);
+  React.useEffect(function() {
+    getSession().then(function(s) {
+      setSession(s);
+      if (s) {
+        var p = getProfile(s.id);
+        setProfile(p ?? null);
+        if (p) {
+          setFullName(p.full_name);
+        }
+      }
+    });
+    supabase.from("profiles").select("id").then(function(result) {
+      setSupaRows(result.data?.length ?? 0);
     });
   }, [supabase]);
 
   function handleSave() {
-    if (!session) return;
-    const updated = upsertProfile(session.id, fullName);
+    if (!session) {
+      return;
+    }
+    var updated = upsertProfile(session.id, fullName);
     setProfile(updated);
     setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setTimeout(function() { setSaved(false); }, 2000);
   }
 
   return (
@@ -56,7 +68,7 @@ export default function ProfilePage() {
               <label style={{ display: "block", fontSize: 12, fontWeight: 800, color: "var(--muted)", marginBottom: 4 }}>Full name</label>
               <input
                 value={fullName}
-                onChange={e => setFullName(e.target.value)}
+                onChange={function(e) { setFullName(e.target.value); }}
                 placeholder="Your display name"
                 style={{ marginTop: 0 }}
               />
@@ -70,7 +82,7 @@ export default function ProfilePage() {
               >
                 <Icon name="ti-device-floppy" /> Save
               </button>
-              {saved && <Badge tone="success">Saved locally</Badge>}
+              {saved ? <Badge tone="success">Saved locally</Badge> : null}
             </div>
           </div>
         </Card>

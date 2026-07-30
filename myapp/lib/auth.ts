@@ -1,40 +1,50 @@
-const USERS_KEY = "sh_users";
-const SESSION_KEY = "sh_session";
+import { createBrowserClient } from "@supabase/ssr";
 
-type StoredUser = {
-  email: string;
-  password: string;
-  id: string;
-};
+var supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+var supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
-export function getSession(): StoredUser | null {
-  if (typeof window === "undefined") return null;
-  const raw = localStorage.getItem(SESSION_KEY);
-  if (!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
+function getClient() {
+  return createBrowserClient(supabaseUrl, supabaseAnonKey);
 }
 
-export function signUp(email: string, password: string): StoredUser {
-  const raw = localStorage.getItem(USERS_KEY);
-  const users: StoredUser[] = raw ? JSON.parse(raw) : [];
-  const existing = users.find(u => u.email === email);
-  if (existing) throw new Error("An account with this email already exists.");
-  const user: StoredUser = { email, password, id: crypto.randomUUID() };
-  users.push(user);
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
-  localStorage.setItem(SESSION_KEY, JSON.stringify(user));
-  return user;
+export async function getSession(): Promise<{ email: string; id: string } | null> {
+  var supabase = getClient();
+  var result = await supabase.auth.getSession();
+  var session = result.data.session;
+  if (!session || !session.user) {
+    return null;
+  }
+  return {
+    email: session.user.email || "",
+    id: session.user.id
+  };
 }
 
-export function signIn(email: string, password: string): StoredUser {
-  const raw = localStorage.getItem(USERS_KEY);
-  const users: StoredUser[] = raw ? JSON.parse(raw) : [];
-  const user = users.find(u => u.email === email && u.password === password);
-  if (!user) throw new Error("Invalid email or password.");
-  localStorage.setItem(SESSION_KEY, JSON.stringify(user));
-  return user;
+export async function signUp(email: string, password: string) {
+  var supabase = getClient();
+  var result = await supabase.auth.signUp({
+    email: email,
+    password: password
+  });
+  if (result.error) {
+    throw new Error(result.error.message);
+  }
+  return result.data.user;
 }
 
-export function signOut() {
-  localStorage.removeItem(SESSION_KEY);
+export async function signIn(email: string, password: string) {
+  var supabase = getClient();
+  var result = await supabase.auth.signInWithPassword({
+    email: email,
+    password: password
+  });
+  if (result.error) {
+    throw new Error(result.error.message);
+  }
+  return result.data.user;
+}
+
+export async function signOut() {
+  var supabase = getClient();
+  await supabase.auth.signOut();
 }
