@@ -1,4 +1,4 @@
-import type { CampusEvent, FeedItem, Metric, NavItem, Person, Resource, Subject, Task } from "./types";
+import type { CalendarEvent, CampusEvent, FeedItem, Metric, NavItem, Person, Resource, Subject, Task } from "./types";
 
 // Temporary seed data. Later, replace these exports with Supabase queries that return the same shapes.
 export const navItems: NavItem[] = [
@@ -8,6 +8,7 @@ export const navItems: NavItem[] = [
   { href: "/events", label: "MyCSD", icon: "ti-confetti" },
   { href: "/campus", label: "Campus", icon: "ti-building" },
   { href: "/profile", label: "Profile", icon: "ti-user" },
+  { href: "/planner", label: "Planner", icon: "ti-calendar" },
 ];
 
 export const dashboardMetrics: Metric[] = [
@@ -80,5 +81,96 @@ export const sampleSubjects: Subject[] = [
     created_by: "user-1",
     created_at: "2026-01-15T08:00:00Z",
     updated_at: "2026-06-20T10:00:00Z",
+  },
+];
+
+export const plannerEvents: CalendarEvent[] = [
+  {
+    id: "class-1",
+    title: "Radiotherapy",
+    description: "Principles and techniques of radiation therapy.",
+    location: "DK A",
+    event_type: "class",
+    start_time: "2026-06-01T10:00:00",
+    end_time: "2026-06-01T12:00:00",
+    rrule: "WEEKLY:MO,WE",
+    google_event_id: null,
+  },
+  {
+    id: "class-2",
+    title: "Financial Management",
+    description: "Corporate finance and capital budgeting.",
+    location: "DK B",
+    event_type: "class",
+    start_time: "2026-06-02T14:00:00",
+    end_time: "2026-06-02T16:00:00",
+    rrule: "WEEKLY:TU",
+    google_event_id: null,
+  },
+  {
+    id: "class-3",
+    title: "Medical Physics",
+    description: "Physics applied to medicine.",
+    location: "Lab F",
+    event_type: "class",
+    start_time: "2026-06-04T10:00:00",
+    end_time: "2026-06-04T12:00:00",
+    rrule: "WEEKLY:TH",
+    google_event_id: null,
+  },
+  {
+    id: "study-1",
+    title: "Study group — FIN345",
+    description: "Weekly revision with the study group.",
+    location: "Library L2",
+    event_type: "study",
+    start_time: "2026-06-15T19:00:00",
+    end_time: "2026-06-15T21:00:00",
+    rrule: null,
+    google_event_id: null,
+  },
+  {
+    id: "study-2",
+    title: "Lab report drafting",
+    description: "Draft the dosimetry lab report.",
+    location: "Home",
+    event_type: "study",
+    start_time: "2026-06-18T20:00:00",
+    end_time: "2026-06-18T22:00:00",
+    rrule: null,
+    google_event_id: null,
+  },
+  {
+    id: "task-1",
+    title: "Submit lab report",
+    description: "Upload final report to eLearn.",
+    location: "eLearn",
+    event_type: "task",
+    start_time: "2026-06-20T17:00:00",
+    end_time: "2026-06-20T17:30:00",
+    rrule: null,
+    google_event_id: null,
+  },
+  {
+    id: "personal-1",
+    title: "AI Workshop",
+    description: "Hands-on generative AI session.",
+    location: "Innovation Lab",
+    event_type: "personal",
+    start_time: "2026-06-20T16:00:00",
+    end_time: "2026-06-20T18:00:00",
+    rrule: null,
+    google_event_id: null,
+  },
+  {
+    id: "study-3",
+    title: "Final exam prep",
+    description: "Closed-book mock papers for MPB204.",
+    location: "Library L2",
+    event_type: "study",
+    start_time: "2026-06-22T09:00:00",
+    end_time: "2026-06-22T12:00:00",
+    rrule: null,
+    google_event_id: null,
   },
 ];

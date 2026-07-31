@@ -40,7 +40,7 @@ export default function DashboardPage() {
             <strong>2:00 PM</strong>
             <span>Financial Management</span>
           </div>
-          <ButtonLink href="/study" icon="ti-books">
+          <ButtonLink href="/planner" icon="ti-books">
             View planner
           </ButtonLink>
         </Card>

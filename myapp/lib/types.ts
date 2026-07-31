@@ -61,3 +61,15 @@ export type Subject = {
   created_at: string;
   updated_at: string;
 };
+
+export type CalendarEvent = {
+  id: string;
+  title: string;
+  description: string;
+  location: string;
+  event_type: "class" | "study" | "task" | "personal";
+  start_time: string;
+  end_time: string;
+  rrule: string | null;
+  google_event_id: string | null;
+};
