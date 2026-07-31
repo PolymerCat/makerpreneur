@@ -12,6 +12,7 @@ import { CourseBar } from "./_components/CourseBar";
 var FEATURES = [
   { href: "/study/materials", icon: "ti-file-text", label: "Materials", desc: "Upload and index study materials" },
   { href: "/study/chat", icon: "ti-message", label: "Chat", desc: "Ask questions about your materials" },
+  { href: "/study/analytics", icon: "ti-chart-radar", label: "Analytics", desc: "PYQ Exam Readiness, Topic Mastery Radar & Consistency Heatmap" },
   { href: "/study/summaries", icon: "ti-notes", label: "Summaries", desc: "Generate AI summaries" },
   { href: "/study/flashcards", icon: "ti-cards", label: "Flashcards", desc: "Create and review flashcards" },
   { href: "/study/quizzes", icon: "ti-quiz", label: "Quizzes", desc: "Practice with AI-generated quizzes" },

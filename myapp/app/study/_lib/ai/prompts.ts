@@ -110,7 +110,45 @@ function predictorPrompt(
     "Predict 4 to 6 highly probable exam questions (with comprehensive model answers and mark allocations) that test key concepts from this material.\n" +
     "Do not include bracketed citation numbers or references like [1] or [7].\n" +
     langInstruction + "\n" +
-    "Return JSON array: [{ \"question\": string, \"modelAnswer\": string, \"marks\": number, \"probability\": \"high\"|\"medium\"|\"low\" }]";
+    "\"topic\" must be a short overarching concept label (3-6 words, e.g. \"Transmission Lines & Wave Reflection\") naming the general concept the question tests, never a restatement of the question itself.\n" +
+    "Return JSON array: [{ \"question\": string, \"modelAnswer\": string, \"marks\": number, \"probability\": \"high\"|\"medium\"|\"low\", \"topic\": string }]";
+}
+
+function topicNamePrompt(
+  questions: string[],
+  courseName: string
+): string {
+  var list = "";
+  for (var i = 0; i < questions.length; i++) {
+    list = list + (i + 1) + ". " + questions[i] + "\n";
+  }
+  return "You are a course analyst for: " + courseName + ".\n" +
+    "For EACH exam question below, give ONE short overarching concept label (3-6 words) naming the general concept it tests (e.g. \"Transmission Lines & Wave Reflection\").\n" +
+    "Labels must be general concepts, never restatements of the question. Questions testing the same concept MUST share the exact same label.\n" +
+    "Return JSON: { \"names\": [string] } with exactly one label per question, in the same order.\n\n" +
+    "QUESTIONS:\n" + list;
+}
+
+function pastQuestionsPrompt(
+  topicNames: string[],
+  courseName: string,
+  papersText: string
+): string {
+  var pText = papersText.length > 40000 ? papersText.substring(0, 40000) + "\n...[truncated]" : papersText;
+  var list = "";
+  for (var i = 0; i < topicNames.length; i++) {
+    list = list + (i + 1) + ". " + topicNames[i] + "\n";
+  }
+  return "You are a course analyst for: " + courseName + ".\n" +
+    "Below are verbatim past-year exam papers.\n\n" +
+    "=== PAST PAPERS ===\n" + pText + "\n\n" +
+    "For EACH concept below, find every question in the past papers that tests that concept and quote each one EXACTLY verbatim, word for word, " +
+    "including part labels like (a)/(b) and any marks. Never paraphrase or summarize.\n" +
+    "The papers are bilingual (English and Bahasa Malaysia). Include ONLY the English version of each question. " +
+    "If a question is written only in Bahasa Malaysia, translate it into English (mark the translation with the prefix \"[Translated] \").\n" +
+    "If a concept has no matching question, return an empty array for it.\n\n" +
+    "CONCEPTS:\n" + list + "\n" +
+    "Return JSON: { \"topics\": [{ \"name\": string, \"questions\": [string] }] } with one entry per concept, in the same order.";
 }
 
 function studyPathPrompt(
@@ -198,6 +236,8 @@ export var prompts = {
   essayGradePrompt: essayGradePrompt,
   translatePrompt: translatePrompt,
   predictorPrompt: predictorPrompt,
+  topicNamePrompt: topicNamePrompt,
+  pastQuestionsPrompt: pastQuestionsPrompt,
   studyPathPrompt: studyPathPrompt,
   generateExamPaperJsonPrompt: generateExamPaperJsonPrompt
 };

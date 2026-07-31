@@ -4,11 +4,8 @@ import React from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Icon } from "@/components/ui/Icon";
 import { useSession } from "@/lib/auth-context";
-import { marked } from "marked";
-import katex from "katex";
-import "katex/dist/katex.min.css";
-
 import { db } from "../_lib/db";
+import { renderMarkdown } from "../_lib/render-markdown";
 import { useCourse } from "../_lib/CourseProvider";
 import { CoursePicker } from "../_components/CoursePicker";
 import { CourseBar } from "../_components/CourseBar";
@@ -33,29 +30,6 @@ type Conversation = {
   createdAt: string;
   updatedAt: string;
 };
-
-function renderMarkdown(text: string): string {
-  // Display math $$...$$
-  text = text.replace(/\$\$([\s\S]*?)\$\$/g, (_, formula: string) => {
-    try {
-      return katex.renderToString(formula.trim(), { displayMode: true, throwOnError: true });
-    } catch {
-      return `<code class="chat-latex-fallback">$${formula}$$</code>`;
-    }
-  });
-
-  // Inline math $...$
-  text = text.replace(/\$(.+?)\$/g, (_, formula: string) => {
-    if (!/[a-zA-Z\\]/.test(formula)) return _;
-    try {
-      return katex.renderToString(formula.trim(), { displayMode: false, throwOnError: true });
-    } catch {
-      return _;
-    }
-  });
-
-  return marked.parse(text) as string;
-}
 
 function formatDate(iso: string): string {
   var d = new Date(iso);

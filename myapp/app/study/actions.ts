@@ -59,9 +59,43 @@ export async function aiPredictQuestions(
   styleData: string,
   courseName: string,
   language: string
-): Promise<{ question: string; modelAnswer: string; marks: number; probability: string }[]> {
+): Promise<{ question: string; modelAnswer: string; marks: number; probability: string; topic: string }[]> {
   var prompt = prompts.predictorPrompt(styleData, courseName, language);
   return await llm.generateJson(prompt, 0.5, 4000, "predict");
+}
+
+export async function aiNameTopics(
+  questions: string[],
+  courseName: string
+): Promise<string[]> {
+  if (questions.length === 0) {
+    return [];
+  }
+  var prompt = prompts.topicNamePrompt(questions, courseName);
+  var res = await llm.generateJson(prompt, 0.2, 2000, "topic_names");
+  var names = Array.isArray(res) ? res : (res && res.names) || [];
+  return names.map(function(n: any) { return String(n); });
+}
+
+export async function aiExtractPastQuestions(
+  topicNames: string[],
+  courseName: string,
+  papersText: string
+): Promise<Record<string, string[]>> {
+  if (topicNames.length === 0 || !papersText || papersText.trim().length === 0) {
+    return {};
+  }
+  var prompt = prompts.pastQuestionsPrompt(topicNames, courseName, papersText);
+  var res = await llm.generateJson(prompt, 0.1, 6000, "past_questions");
+  var topics = Array.isArray(res) ? res : (res && res.topics) || [];
+  var result: Record<string, string[]> = {};
+  for (var i = 0; i < topics.length; i++) {
+    var name = String(topics[i].name || "").trim();
+    if (name && Array.isArray(topics[i].questions)) {
+      result[name] = topics[i].questions.map(function(q: any) { return String(q); });
+    }
+  }
+  return result;
 }
 
 export async function aiMakeStudyPath(
