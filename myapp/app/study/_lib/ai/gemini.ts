@@ -9,13 +9,13 @@ async function getClient(): Promise<any> {
 }
 
 var MODELS = [
-  "gemini-2.5-flash",
   "gemini-3.6-flash",
   "gemini-3.5-flash",
   "gemini-3.5-flash-lite",
   "gemini-3.1-flash-lite",
   "gemini-2.5-pro",
-  "gemini-2.5-flash-lite"
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-flash"
 ];
 
 var EMBED_MODELS = [
@@ -23,7 +23,7 @@ var EMBED_MODELS = [
   "text-embedding-004"
 ];
 
-var MIN_GAP = 3.0;
+var MIN_GAP = 1.0;
 var lastCallTime: Record<string, number> = {};
 
 async function generate(
@@ -62,12 +62,14 @@ async function generateJson(
   prompt: string,
   temperature: number,
   maxTokens: number,
-  task: string | null
+  task: string | null,
+  preferredModel: string | null = null
 ): Promise<any> {
   var client = await getClient();
   var lastError: unknown = null;
-  for (var i = 0; i < MODELS.length; i++) {
-    var model = MODELS[i];
+  var models = preferredModel ? [preferredModel].concat(MODELS.filter(function(m) { return m !== preferredModel; })) : MODELS;
+  for (var i = 0; i < models.length; i++) {
+    var model = models[i];
     try {
       console.log("[GEMINI] trying " + model + " (" + (task || "generateJson") + ")");
       await rateLimit(model);

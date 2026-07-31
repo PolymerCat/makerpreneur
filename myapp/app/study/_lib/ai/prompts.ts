@@ -1,3 +1,5 @@
+import { stripCitations } from "./citations";
+
 function chatPrompt(
   chunks: string[],
   question: string,
@@ -6,7 +8,7 @@ function chatPrompt(
 ): string {
   var contextText = "";
   for (var i = 0; i < chunks.length; i++) {
-    contextText = contextText + "[P." + i + "] " + chunks[i] + "\n\n";
+    contextText = contextText + "[P." + i + "] " + stripCitations(chunks[i]) + "\n\n";
   }
   var langInstruction = "";
   if (language === "ms") {
@@ -36,7 +38,8 @@ function summarizePrompt(fullText: string, mode: string, language: string): stri
   } else {
     langInstruction = "Write in English.";
   }
-  return "Summarize the following text.\n" + modeInstruction + "\n" + langInstruction + "\n\nTEXT:\n" + fullText;
+  return "Summarize the following text.\n" + modeInstruction + "\n" + langInstruction + "\n" +
+    "Do not include bracketed citation numbers or references like [1] or [7].\n\nTEXT:\n" + stripCitations(fullText);
 }
 
 function flashcardsPrompt(fullText: string, language: string, cardCount: number): string {
@@ -48,7 +51,8 @@ function flashcardsPrompt(fullText: string, language: string, cardCount: number)
   }
   return "Create " + cardCount + " flashcards from the following text.\n" +
     langInstruction + "\n" +
-    "Return a JSON array of objects with keys 'front' and 'back'.\n\nTEXT:\n" + fullText;
+    "Do not include bracketed citation numbers or references like [1] or [7].\n" +
+    "Return a JSON array of objects with keys 'front' and 'back'.\n\nTEXT:\n" + stripCitations(fullText);
 }
 
 function quizPrompt(fullText: string, language: string, questionCount: number): string {
@@ -60,6 +64,7 @@ function quizPrompt(fullText: string, language: string, questionCount: number): 
   }
   return "Create " + questionCount + " quiz questions based strictly on the provided text.\n" +
     langInstruction + "\n" +
+    "Do not include bracketed citation numbers or references like [1] or [7].\n" +
     "Include a mix of multiple-choice (mcq), true-false (tf), and essay questions.\n" +
     "Return JSON: {\n" +
     "  \"questions\": [{\n" +
@@ -100,9 +105,10 @@ function predictorPrompt(
 
   return "You are an expert exam question predictor for the course: " + courseName + ".\n" +
     "Analyze the following source exam papers/study material content carefully:\n\n" +
-    "--- MATERIAL START ---\n" + textSnippet + "\n--- MATERIAL END ---\n\n" +
+    "--- MATERIAL START ---\n" + stripCitations(textSnippet) + "\n--- MATERIAL END ---\n\n" +
     "Based strictly on the course material above, identify the core technical topics, patterns, and question styles. " +
     "Predict 4 to 6 highly probable exam questions (with comprehensive model answers and mark allocations) that test key concepts from this material.\n" +
+    "Do not include bracketed citation numbers or references like [1] or [7].\n" +
     langInstruction + "\n" +
     "Return JSON array: [{ \"question\": string, \"modelAnswer\": string, \"marks\": number, \"probability\": \"high\"|\"medium\"|\"low\" }]";
 }
@@ -126,6 +132,64 @@ function studyPathPrompt(
     "Return JSON: { days: [{ dayNumber: number, date: string, topic: string, tasks: string[] }] }";
 }
 
+function generateExamPaperJsonPrompt(
+  syllabusText: string,
+  pastPapersText: string,
+  courseCode: string,
+  title: string,
+  numQuestions: number
+): string {
+  var pText = pastPapersText.length > 35000 ? pastPapersText.substring(0, 35000) + "\n...[truncated]" : pastPapersText;
+  var sText = syllabusText.length > 25000 ? syllabusText.substring(0, 25000) + "\n...[truncated]" : syllabusText;
+  
+  return "You are an expert university professor and examiner for " + courseCode + " - " + title + ".\n" +
+    "Generate a bilingual (English and Bahasa Malaysia) exam paper JSON that follows the USM 'SULIT' format.\n\n" +
+    "=== PRIMARY DOMAIN & REFERENCE PAST PAPERS (SUBJECT SCOPE, DIFFICULTY & STRUCTURE) ===\n" + pText + "\n\n" +
+    (sText ? ("=== COURSE REFERENCE MATERIAL ===\n" + sText + "\n\n") : "") +
+    "CRITICAL REQUIREMENTS ON SUBJECT CORRELATION & SYLLABUS SCOPE (PREVENT CONTEXT CONTAMINATION):\n" +
+    "1. Every question MUST test topics present in the reference past papers; never invent topics not covered by the materials.\n" +
+    "2. If the reference text is empty, return {\"error\":\"no reference content\"} instead of generating.\n" +
+    "3. If the Course Reference Material contains notes from unrelated subjects or topics not covered in the Reference Past Papers (context contamination), YOU MUST IGNORE THEM COMPLETELY.\n" +
+    "4. Design new, rigorous university-level exam questions (with analytical reasoning, equations, scenarios, or diagrams where appropriate) that test the exact syllabus concepts seen in the Reference Past Papers.\n\n" +
+    "FORMAT REQUIREMENTS:\n" +
+    "1. Generate exactly " + numQuestions + " main questions.\n" +
+    "2. Randomize the inclusion of sub-questions (`parts`: (a), (b), (c)) for each question to match the varying structural depth seen in the past papers (some questions should be single essays, some multi-part).\n" +
+    "3. Total marks across all questions MUST sum to exactly 100.\n" +
+    "4. All text fields must be bilingual: `text_en` (English) and `text_bm` (Bahasa Malaysia).\n" +
+    "5. When including mathematical formulas, equations, subscripts, superscripts, or symbols in questions, you may use standard LaTeX syntax (e.g. $P_1$, $x^2$, \\alpha, \\frac{a}{b}, \\sum_{i=1}^n x_i) which will be automatically formatted for the PDF.\n" +
+    "6. Output valid JSON matching this schema exactly:\n" +
+    "{\n" +
+    "  \"paper\": {\n" +
+    "    \"course_code\": \"" + courseCode + "\",\n" +
+    "    \"first_page_number\": 1,\n" +
+    "    \"include_instructions\": true,\n" +
+    "    \"instructions\": {\n" +
+    "      \"num_questions_en\": \"FOUR (4)\",\n" +
+    "      \"num_questions_bm\": \"EMPAT (4)\"\n" +
+    "    }\n" +
+    "  },\n" +
+    "  \"questions\": [\n" +
+    "    {\n" +
+    "      \"number\": 1,\n" +
+    "      \"text_en\": \"...\",\n" +
+    "      \"text_bm\": \"...\",\n" +
+    "      \"marks\": 25\n" +
+    "    },\n" +
+    "    {\n" +
+    "      \"number\": 2,\n" +
+    "      \"intro_en\": \"Answer the following questions.\",\n" +
+    "      \"intro_bm\": \"Jawab soalan-soalan yang berikut.\",\n" +
+    "      \"parts\": [\n" +
+    "        {\"label\": \"a\", \"text_en\": \"...\", \"text_bm\": \"...\"},\n" +
+    "        {\"label\": \"b\", \"text_en\": \"...\", \"text_bm\": \"...\"}\n" +
+    "      ],\n" +
+    "      \"marks\": 25\n" +
+    "    }\n" +
+    "  ]\n" +
+    "}\n\n" +
+    "Return ONLY valid JSON.";
+}
+
 export var prompts = {
   chatPrompt: chatPrompt,
   summarizePrompt: summarizePrompt,
@@ -134,5 +198,6 @@ export var prompts = {
   essayGradePrompt: essayGradePrompt,
   translatePrompt: translatePrompt,
   predictorPrompt: predictorPrompt,
-  studyPathPrompt: studyPathPrompt
+  studyPathPrompt: studyPathPrompt,
+  generateExamPaperJsonPrompt: generateExamPaperJsonPrompt
 };

@@ -1,21 +1,22 @@
 import { GoogleGenAI } from "@google/genai";
+import { stripCitations } from "../../_lib/ai/citations";
 
 var GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 
 // ponytail: Python-proven model list, sorted by free-tier RPD descending.
 // Preferred chat model first, then highest-quota models, rest as fallback.
 var MODELS = [
-  "gemini-2.5-flash",
   "gemini-3.6-flash",
   "gemini-3.5-flash",
   "gemini-3.5-flash-lite",
   "gemini-3.1-flash-lite",
   "gemini-2.5-pro",
-  "gemini-2.5-flash-lite"
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-flash"
 ];
 
 var LAST_CALL: Record<string, number> = {};
-var MIN_GAP = 3.0;
+var MIN_GAP = 1.0;
 
 var SYSTEM_PROMPT = "" +
   "You are Study Buddy, a personalized study assistant.\n" +
@@ -55,7 +56,8 @@ var SYSTEM_PROMPT = "" +
   "GUIDELINES:\n" +
   "- Use clear markdown formatting (headings, bullets, code blocks when relevant).\n" +
   "- Keep answers concise but thorough — focus on what the student needs to learn.\n" +
-  "- If you don't know, say so rather than guessing.";
+  "- If you don't know, say so rather than guessing.\n" +
+  "- Never include bracketed citation numbers like [1] or [7] in your answers.";
 
 async function tryGenerateStream(
   client: GoogleGenAI,
@@ -89,10 +91,12 @@ export async function POST(request: Request) {
     var chunks = body.chunks || [];
     var chatHistory = body.chatHistory || "";
     var language = body.language || "en";
+    var summary = body.summary || "";
+    var memories = body.memories || []; // string[] or string
+    var questionEmbedding = body.questionEmbedding || null; // number[] from aiRetrieve
 
     console.log("[CHAT-ROUTE] question:", question.slice(0, 50));
     console.log("[CHAT-ROUTE] chunks count:", chunks.length);
-    console.log("[CHAT-ROUTE] first chunk preview:", chunks.length > 0 ? (chunks[0] || "").slice(0, 80) : "(none)");
 
     if (question === "") {
       return new Response(JSON.stringify({ error: "question is required" }), {
@@ -101,11 +105,61 @@ export async function POST(request: Request) {
       });
     }
 
+    // 1. Response Cache Check (semcache with kind='chat')
+    var queryEmbedding: number[] | null = null;
+    try {
+      var dbMod = await import("../../_lib/supabase-db");
+      if (Array.isArray(questionEmbedding) && questionEmbedding.length > 0) {
+        queryEmbedding = questionEmbedding;
+      } else {
+        var llmMod = await import("../../_lib/ai/gemini");
+        var embeddings = await llmMod.llm.embedTexts([question]);
+        if (embeddings && embeddings.length > 0) {
+          queryEmbedding = embeddings[0];
+        }
+      }
+      var isShortHistory = !chatHistory || chatHistory.split("\n").length <= 4;
+      if (queryEmbedding && isShortHistory) {
+        var cachedHit = await dbMod.sdb.searchChatCache(queryEmbedding, 0.95);
+        if (cachedHit && cachedHit.answer) {
+          console.log("[CHAT-ROUTE] ⚡ Cache HIT for chat answer!");
+          var encoderFast = new TextEncoder();
+          var fastStream = new ReadableStream({
+            start(controller) {
+              controller.enqueue(encoderFast.encode(cachedHit.answer));
+              controller.close();
+            }
+          });
+          return new Response(fastStream, {
+            headers: {
+              "content-type": "text/plain; charset=utf-8",
+              "x-vercel-edge": "1"
+            }
+          });
+        }
+      }
+    } catch (cacheErr) {
+      console.log("[CHAT-ROUTE] Cache lookup skipped/failed:", cacheErr);
+    }
+
+    // 2. Build Memory & Context Blocks
+    var memoryText = "";
+    if (Array.isArray(memories) && memories.length > 0) {
+      memoryText = "MEMORY (About this student):\n---\n" + memories.map(function(m: string) { return "- " + stripCitations(m); }).join("\n") + "\n---";
+    } else if (typeof memories === "string" && memories.trim() !== "") {
+      memoryText = "MEMORY (About this student):\n---\n" + stripCitations(memories) + "\n---";
+    }
+
+    var summaryText = "";
+    if (summary !== "") {
+      summaryText = "SUMMARY OF EARLIER CONVERSATION:\n---\n" + stripCitations(summary) + "\n---";
+    }
+
     var contextText = "";
     if (chunks.length > 0) {
       contextText = "CONTEXT (from your uploaded materials):\n---\n";
       for (var i = 0; i < chunks.length; i++) {
-        contextText = contextText + "[" + (i + 1) + "] " + chunks[i] + "\n\n";
+        contextText = contextText + "[" + (i + 1) + "] " + stripCitations(chunks[i]) + "\n\n";
       }
       contextText = contextText + "---";
     }
@@ -119,10 +173,18 @@ export async function POST(request: Request) {
 
     var historyText = "";
     if (chatHistory !== "") {
-      historyText = "Chat history:\n---\n" + chatHistory + "\n---";
+      historyText = "Recent Chat history:\n---\n" + stripCitations(chatHistory) + "\n---";
     }
 
-    var prompt = contextText + "\n\n" + historyText + "\n\n" + langInstruction + "\n" + "Student: " + question + "\nAssistant:";
+    var promptParts = [];
+    if (memoryText) promptParts.push(memoryText);
+    if (summaryText) promptParts.push(summaryText);
+    if (contextText) promptParts.push(contextText);
+    if (historyText) promptParts.push(historyText);
+    promptParts.push(langInstruction);
+    promptParts.push("Student: " + question + "\nAssistant:");
+
+    var prompt = promptParts.join("\n\n");
 
     var client = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
     var stream: AsyncGenerator<unknown> | null = null;
@@ -148,16 +210,27 @@ export async function POST(request: Request) {
     }
 
     var encoder = new TextEncoder();
+    var fullAnswerBuffer = "";
     var readable = new ReadableStream({
       async start(controller) {
         try {
           for await (var chunk of stream!) {
             var text = (chunk as { text?: string }).text || "";
             if (text !== "") {
+              fullAnswerBuffer += text;
               controller.enqueue(encoder.encode(text));
             }
           }
           controller.close();
+
+          // Save to cache after stream completes if embedding available
+          if (queryEmbedding && fullAnswerBuffer.length > 20) {
+            try {
+              var dbMod = await import("../../_lib/supabase-db");
+              await dbMod.sdb.cacheChatAnswer(question, queryEmbedding, fullAnswerBuffer);
+              console.log("[CHAT-ROUTE] Saved answer to cache");
+            } catch (_cErr) {}
+          }
         } catch (err) {
           console.error("[GEMINI] stream error:", err);
           controller.enqueue(encoder.encode("\n\nAI service is temporarily unavailable. Please try again later."));

@@ -12,7 +12,7 @@ import { db } from "../_lib/db";
 import { useCourse } from "../_lib/CourseProvider";
 import { CoursePicker } from "../_components/CoursePicker";
 import { CourseBar } from "../_components/CourseBar";
-import { aiRetrieve } from "../actions";
+import { aiRetrieve, aiExtractMemory } from "../actions";
 import type { Material } from "../_lib/types";
 
 var STREAM_URL = "/study/api/chat";
@@ -29,6 +29,7 @@ type Conversation = {
   id: string;
   userId: string;
   title: string;
+  summary?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -89,6 +90,7 @@ export default function ChatPage() {
   var [sources, setSources] = React.useState<{ material: Material; chunkCount: number }[]>([]);
   var messagesEndRef = React.useRef<HTMLDivElement>(null);
   var textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  var loadedUserIdRef = React.useRef<string | null>(null);
 
   React.useEffect(function() {
     if (messagesEndRef.current) {
@@ -97,8 +99,11 @@ export default function ChatPage() {
   }, [messages]);
 
   React.useEffect(function() {
-    if (user) {
+    if (user && user.id !== loadedUserIdRef.current) {
+      loadedUserIdRef.current = user.id;
       loadConversations(user.id);
+    } else if (!user) {
+      loadedUserIdRef.current = null;
     }
   }, [user]);
 
@@ -127,7 +132,7 @@ export default function ChatPage() {
     try {
       var list = await db.listConversations(userId);
       setConversations(list as Conversation[]);
-      if (list.length > 0) {
+      if (list.length > 0 && activeConvId === "" && messages.length === 0) {
         setActiveConvId(list[0].id);
         var msgs = await db.listMessages(list[0].id);
         setMessages((msgs as { role: string; content: string }[]));
@@ -223,13 +228,36 @@ export default function ChatPage() {
     });
     setLoading(true);
 
+    var title = question.slice(0, 60);
+    var targetConvId = activeConvId;
+    if (user && !targetConvId) {
+      targetConvId = await ensureConversation(title);
+    }
+    if (user && targetConvId) {
+      db.addMessage(targetConvId, "user", question).catch(function(err) {
+        console.error("addMessage user error:", err);
+      });
+    }
+
     try {
+      var recent = messages.slice(-10);
       var historyLines: string[] = [];
-      for (var i = 0; i < messages.length; i++) {
-        var role = messages[i].role === "user" ? "User" : "Assistant";
-        historyLines.push(role + ": " + messages[i].content);
+      for (var i = 0; i < recent.length; i++) {
+        var role = recent[i].role === "user" ? "User" : "Assistant";
+        historyLines.push(role + ": " + recent[i].content);
       }
       var chatHistory = historyLines.join("\n");
+
+      var currentConv = conversations.find(function(c) { return c.id === activeConvId; });
+      var currentSummary = currentConv?.summary || "";
+
+      var memories: string[] = [];
+      if (user && activeCourse) {
+        try {
+          var memList = await db.listMemories(user.id, activeCourse.id);
+          memories = memList.map(function(m: any) { return "[" + m.type + "] " + m.content; });
+        } catch (_mErr) {}
+      }
 
       console.log("[SEND] sources count:", sources.length);
       var readyMaterialIds = sources.filter(function(s) {
@@ -237,13 +265,16 @@ export default function ChatPage() {
       }).map(function(s) {
         return s.material.id;
       });
-      console.log("[SEND] readyMaterialIds:", readyMaterialIds.length, readyMaterialIds);
+      var isGreeting = /^(hi|hello|hey|greetings|thanks|thank you|good morning|good afternoon)\b/i.test(question.trim());
       var topChunks: string[] = [];
-      if (readyMaterialIds.length > 0) {
-        topChunks = await aiRetrieve(question, readyMaterialIds, 4, "en");
+      var questionEmbedding: number[] | null = null;
+      if (readyMaterialIds.length > 0 && !isGreeting) {
+        var ret = await aiRetrieve(question, readyMaterialIds, 4, "en");
+        topChunks = ret.chunks;
+        questionEmbedding = ret.embedding;
         console.log("[SEND] topChunks count:", topChunks.length);
       } else {
-        console.log("[SEND] no ready materials, sending empty chunks");
+        console.log("[SEND] skipping heavy RAG for greeting/no materials");
       }
 
       var response = await fetch(STREAM_URL, {
@@ -253,6 +284,9 @@ export default function ChatPage() {
           question: question,
           chunks: topChunks,
           chatHistory: chatHistory,
+          summary: currentSummary,
+          memories: memories,
+          questionEmbedding: questionEmbedding,
           language: "en"
         })
       });
@@ -290,17 +324,17 @@ export default function ChatPage() {
         });
       }
 
-      if (user) {
-        var title = question.slice(0, 60);
-        var convId = await ensureConversation(title);
-        if (convId !== "") {
-          await db.addMessage(convId, "user", question);
-          await db.addMessage(convId, "assistant", assistantMessage);
-          if (user) {
-            await db.renameConversation(convId, title);
-            var list = await db.listConversations(user.id);
-            setConversations(list as Conversation[]);
-          }
+      if (user && targetConvId) {
+        await db.addMessage(targetConvId, "assistant", assistantMessage);
+        await db.renameConversation(targetConvId, title);
+        var list = await db.listConversations(user.id);
+        setConversations(list as Conversation[]);
+        // Fire non-blocking memory extraction hook (skip trivial exchanges)
+        var isTrivial = /^(hi|hello|hey|thanks|thank you|ok|okay|good|great|nice|bye|noted)\b/i.test(question.trim()) || assistantMessage.trim().length < 60;
+        if (!isTrivial) {
+          aiExtractMemory(targetConvId, activeCourse?.id || null, question, assistantMessage).catch(function(mErr) {
+            console.error("[CHAT] Non-blocking aiExtractMemory error:", mErr);
+          });
         }
       }
     } catch (err) {

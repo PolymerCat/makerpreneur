@@ -8,7 +8,8 @@ import Link from "next/link";
 import { db } from "../../_lib/db";
 import type { Quiz, Question } from "../../_lib/types";
 import QuizRunner from "../../_components/QuizRunner";
-import { aiGradeEssay } from "../../actions";
+import { aiGradeEssay, aiRecordQuizResult } from "../../actions";
+import { useCourse } from "../../_lib/CourseProvider";
 
 export default function QuizTakePage(props: { params: Promise<{ id: string }> }) {
   var params = React.use(props.params);
@@ -89,12 +90,27 @@ export default function QuizTakePage(props: { params: Promise<{ id: string }> })
     }
     setResults(newResults);
 
+    var finalScorePct = Math.round((score / questions.length) * 100);
     await db.insert("attempts", {
       quizId: quizId,
-      score: Math.round((score / questions.length) * 100),
+      score: finalScorePct,
       answers: JSON.stringify(answers),
       gradedAt: new Date().toISOString()
     });
+
+    // Record weakness memories for missed questions
+    var weakTopics: string[] = [];
+    for (var qIdx = 0; qIdx < questions.length; qIdx++) {
+      var qItem = questions[qIdx];
+      if (newResults[qItem.id] && !newResults[qItem.id].correct) {
+        weakTopics.push(qItem.prompt.slice(0, 80));
+      }
+    }
+    if (weakTopics.length > 0 && quiz) {
+      aiRecordQuizResult(null, quiz.title, weakTopics, finalScorePct).catch(function(e) {
+        console.error("aiRecordQuizResult notice:", e);
+      });
+    }
   }
 
   if (!quiz) {

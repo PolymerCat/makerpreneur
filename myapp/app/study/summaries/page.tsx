@@ -8,6 +8,7 @@ import { db } from "../_lib/db";
 import type { Material, Summary } from "../_lib/types";
 import SourceSelector from "../_components/SourceSelector";
 import { aiSummarize } from "../actions";
+import { stripCitations } from "../_lib/ai/citations";
 import { useCourse } from "../_lib/CourseProvider";
 import { CoursePicker } from "../_components/CoursePicker";
 import { CourseBar } from "../_components/CourseBar";
@@ -132,7 +133,7 @@ export default function SummariesPage() {
             <div key={s.id} className="summary-item">
               <p className="summary-source">Source: {sourceName}</p>
               <div className="summary-content">
-                {s.content.split("\n").map(function(line, idx) {
+                {stripCitations(s.content).split("\n").map(function(line, idx) {
                   return <p key={idx}>{line}</p>;
                 })}
               </div>

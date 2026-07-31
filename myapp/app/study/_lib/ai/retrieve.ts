@@ -31,16 +31,17 @@ async function retrieveAdvanced(
   var k = topK || DEFAULT_TOP_K;
   var queries = await expandQueries(question, language);
   var allResults: any[][] = [];
-  for (var i = 0; i < queries.length; i++) {
-    var qEmbedding: number[][] = [];
-    try {
-      qEmbedding = await llm.embedTexts([queries[i]]);
-    } catch (err) {
-      continue;
-    }
-    var results = await db.vectorSearch(materialId, qEmbedding[0], k * 2);
-    allResults.push(results);
+  var qEmbeddings: number[][] = [];
+  try {
+    qEmbeddings = await llm.embedTexts(queries);
+  } catch (err) {
+    console.error("Batched embedding failed for queries", err);
+    return [];
   }
+  var searches = queries.map(function(query, i) {
+    return db.vectorSearch(materialId, qEmbeddings[i], k * 2);
+  });
+  allResults = await Promise.all(searches);
   var fused = rrfFuse(allResults, 60);
   fused = fused.slice(0, k);
   var topTexts: string[] = [];

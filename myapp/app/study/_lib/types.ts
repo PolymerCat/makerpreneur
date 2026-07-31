@@ -101,4 +101,26 @@ export type Prediction = {
   studiedIds: string;
 };
 
+export type Memory = {
+  id: string;
+  userId: string;
+  courseId: string | null;
+  conversationId: string | null;
+  type: string;
+  tags: string[];
+  content: string;
+  importance: number;
+  source: string;
+  createdAt: string;
+  updatedAt: string;
+};
 
+export type GeneratedExam = {
+  id: string;
+  courseId: string;
+  title: string;
+  courseCode: string;
+  fileUrl: string;
+  questionsJson: any;
+  createdAt: string;
+};

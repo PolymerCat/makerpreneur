@@ -22,9 +22,11 @@ var COLUMN_MAP: Record<string, Record<string, string>> = {
   plan_days:    { planId: "plan_id", dayNumber: "day_number" },
   schedule_blocks: { startsAt: "starts_at", endsAt: "ends_at" },
   predictions:  { courseId: "course_id", createdAt: "created_at", freqJson: "freq_json", questionsJson: "questions_json", studiedIds: "studied_ids" },
+  generated_exams: { courseId: "course_id", courseCode: "course_code", fileUrl: "file_url", questionsJson: "questions_json", createdAt: "created_at" },
   search_index: { materialId: "material_id", indexData: "index_data" },
   conversations: { userId: "user_id", createdAt: "created_at", updatedAt: "updated_at" },
-  messages: { conversationId: "conversation_id", createdAt: "created_at" }
+  messages: { conversationId: "conversation_id", createdAt: "created_at" },
+  memories: { userId: "user_id", courseId: "course_id", conversationId: "conversation_id", createdAt: "created_at", updatedAt: "updated_at" }
 };
 
 function toSnake(table: string, data: any): any {
@@ -269,6 +271,28 @@ async function countForCourse(courseId: string): Promise<Record<string, number>>
   };
 }
 
+async function listGeneratedExams(courseId: string) {
+  var client = getClient();
+  var result = await client
+    .from("generated_exams")
+    .select("*")
+    .eq("course_id", courseId)
+    .order("created_at", { ascending: false });
+  if (result.error) {
+    throw new Error("listGeneratedExams: " + result.error.message);
+  }
+  return toCamelList("generated_exams", result.data || []);
+}
+
+async function deleteGeneratedExam(id: string) {
+  var client = getClient();
+  var result = await client.from("generated_exams").delete().eq("id", id);
+  if (result.error) {
+    throw new Error("deleteGeneratedExam: " + result.error.message);
+  }
+  return true;
+}
+
 async function listConversations(userId: string) {
   var client = getClient();
   var result = await client
@@ -349,6 +373,144 @@ async function renameConversation(id: string, title: string) {
   }
 }
 
+/* --- Memory & Semcache Helpers --- */
+
+async function listMemories(userId: string, courseId?: string) {
+  var client = getClient();
+  var query = client.from("memories").select("*").eq("user_id", userId);
+  if (courseId) {
+    query = query.or("course_id.eq." + courseId + ",course_id.is.null");
+  }
+  var result = await query.order("updated_at", { ascending: false });
+  if (result.error) {
+    console.error("listMemories error:", result.error);
+    return [];
+  }
+  return toCamelList("memories", result.data || []);
+}
+
+async function memorySearch(
+  userId: string,
+  courseId: string | null,
+  queryEmbedding: number[],
+  limit: number = 8
+) {
+  var client = getClient();
+  var embedding = "[" + queryEmbedding.join(",") + "]";
+  var result = await client.rpc("search_memories", {
+    query_embedding: embedding,
+    match_user_id: userId,
+    match_course_id: courseId,
+    match_count: limit,
+    match_threshold: 0.3
+  });
+  if (result.error) {
+    console.error("memorySearch error:", result.error);
+    return [];
+  }
+  return (result.data || []).map(function(r: any) {
+    return {
+      id: r.id,
+      type: r.type,
+      tags: r.tags,
+      content: r.content,
+      importance: r.importance,
+      source: r.source,
+      similarity: r.similarity
+    };
+  });
+}
+
+async function updateConversationSummary(conversationId: string, summary: string) {
+  var client = getClient();
+  var now = new Date().toISOString();
+  var result = await client
+    .from("conversations")
+    .update({ summary: summary, updated_at: now })
+    .eq("id", conversationId);
+  if (result.error) {
+    console.error("updateConversationSummary error:", result.error.message);
+  }
+}
+
+async function cacheChatAnswer(question: string, queryEmbedding: number[], answer: string) {
+  var client = getClient();
+  var embedding = "[" + queryEmbedding.join(",") + "]";
+  var result = await client.from("semcache").insert({
+    question: question,
+    answer: answer,
+    embedding: embedding,
+    kind: "chat"
+  });
+  if (result.error) {
+    console.error("cacheChatAnswer error:", result.error.message);
+  }
+}
+
+async function searchChatCache(queryEmbedding: number[], matchThreshold: number = 0.95) {
+  var client = getClient();
+  var embedding = "[" + queryEmbedding.join(",") + "]";
+  var result = await client.rpc("search_semcache", {
+    query_embedding: embedding,
+    match_threshold: matchThreshold,
+    match_kind: "chat"
+  });
+  if (result.error) {
+    console.error("searchChatCache error:", result.error);
+    return null;
+  }
+  if (!result.data || result.data.length === 0) {
+    return null;
+  }
+  return result.data[0];
+}
+
+async function upsertEpisodeMemory(
+  userId: string,
+  courseId: string | null,
+  conversationId: string,
+  content: string,
+  embedding: string
+): Promise<void> {
+  var client = getClient();
+  var now = new Date().toISOString();
+  var existing = await client
+    .from("memories")
+    .select("id")
+    .eq("conversation_id", conversationId)
+    .eq("type", "episode")
+    .limit(1);
+
+  if (existing.data && existing.data.length > 0) {
+    var updateRes = await client
+      .from("memories")
+      .update({
+        content: content,
+        embedding: embedding,
+        updated_at: now
+      })
+      .eq("id", existing.data[0].id);
+    if (updateRes.error) {
+      console.error("upsertEpisodeMemory update error:", updateRes.error.message);
+    }
+  } else {
+    var insertRes = await client.from("memories").insert({
+      user_id: userId,
+      course_id: courseId,
+      conversation_id: conversationId,
+      type: "episode",
+      tags: ["episode", "summary"],
+      content: content,
+      importance: 0.5,
+      source: "chat",
+      embedding: embedding
+    });
+    if (insertRes.error) {
+      console.error("upsertEpisodeMemory insert error:", insertRes.error.message);
+    }
+  }
+}
+
 /* --- Storage helpers --- */
 
 async function uploadFile(bucket: string, path: string, file: Blob | ArrayBuffer, contentType?: string): Promise<string> {
@@ -379,12 +541,21 @@ export var sdb = {
   vectorSearch: vectorSearch,
   materialText: materialText,
   countForCourse: countForCourse,
+  listGeneratedExams: listGeneratedExams,
+  deleteGeneratedExam: deleteGeneratedExam,
   listConversations: listConversations,
   createConversation: createConversation,
   deleteConversation: deleteConversation,
   listMessages: listMessages,
   addMessage: addMessage,
   renameConversation: renameConversation,
+  listMemories: listMemories,
+  memorySearch: memorySearch,
+  upsertEpisodeMemory: upsertEpisodeMemory,
+  updateConversationSummary: updateConversationSummary,
+  cacheChatAnswer: cacheChatAnswer,
+  searchChatCache: searchChatCache,
   uploadFile: uploadFile,
   getPublicUrl: getPublicUrl
 };
+
