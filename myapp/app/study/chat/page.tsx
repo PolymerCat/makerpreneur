@@ -12,7 +12,7 @@ import { db } from "../_lib/db";
 import { useCourse } from "../_lib/CourseProvider";
 import { CoursePicker } from "../_components/CoursePicker";
 import { CourseBar } from "../_components/CourseBar";
-import { aiRetrieve, aiExtractMemory } from "../actions";
+import { aiExtractMemory } from "../actions";
 import type { Material } from "../_lib/types";
 
 var STREAM_URL = "/study/api/chat";
@@ -88,9 +88,24 @@ export default function ChatPage() {
   var { user } = useSession();
   var [historyLoading, setHistoryLoading] = React.useState(false);
   var [sources, setSources] = React.useState<{ material: Material; chunkCount: number }[]>([]);
+  var [isSearching, setIsSearching] = React.useState(false);
   var messagesEndRef = React.useRef<HTMLDivElement>(null);
   var textareaRef = React.useRef<HTMLTextAreaElement>(null);
   var loadedUserIdRef = React.useRef<string | null>(null);
+  var memoriesCacheRef = React.useRef<{ courseId: string; list: string[] } | null>(null);
+
+  var pendingBufferRef = React.useRef("");
+  var displayedTextRef = React.useRef("");
+  var typewriterIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  var isStreamDoneRef = React.useRef(false);
+
+  React.useEffect(function() {
+    return function() {
+      if (typewriterIntervalRef.current) {
+        clearInterval(typewriterIntervalRef.current);
+      }
+    };
+  }, []);
 
   React.useEffect(function() {
     if (messagesEndRef.current) {
@@ -132,11 +147,6 @@ export default function ChatPage() {
     try {
       var list = await db.listConversations(userId);
       setConversations(list as Conversation[]);
-      if (list.length > 0 && activeConvId === "" && messages.length === 0) {
-        setActiveConvId(list[0].id);
-        var msgs = await db.listMessages(list[0].id);
-        setMessages((msgs as { role: string; content: string }[]));
-      }
     } catch (err) {
       console.error("loadConversations:", err);
     }
@@ -253,10 +263,16 @@ export default function ChatPage() {
 
       var memories: string[] = [];
       if (user && activeCourse) {
-        try {
-          var memList = await db.listMemories(user.id, activeCourse.id);
-          memories = memList.map(function(m: any) { return "[" + m.type + "] " + m.content; });
-        } catch (_mErr) {}
+        var memCache = memoriesCacheRef.current;
+        if (memCache && memCache.courseId === activeCourse.id) {
+          memories = memCache.list;
+        } else {
+          try {
+            var memList = await db.listMemories(user.id, activeCourse.id);
+            memories = memList.map(function(m: any) { return "[" + m.type + "] " + m.content; });
+            memoriesCacheRef.current = { courseId: activeCourse.id, list: memories };
+          } catch (_mErr) {}
+        }
       }
 
       console.log("[SEND] sources count:", sources.length);
@@ -266,15 +282,42 @@ export default function ChatPage() {
         return s.material.id;
       });
       var isGreeting = /^(hi|hello|hey|greetings|thanks|thank you|good morning|good afternoon)\b/i.test(question.trim());
-      var topChunks: string[] = [];
-      var questionEmbedding: number[] | null = null;
+
       if (readyMaterialIds.length > 0 && !isGreeting) {
-        var ret = await aiRetrieve(question, readyMaterialIds, 4, "en");
-        topChunks = ret.chunks;
-        questionEmbedding = ret.embedding;
-        console.log("[SEND] topChunks count:", topChunks.length);
+        setIsSearching(true);
       } else {
-        console.log("[SEND] skipping heavy RAG for greeting/no materials");
+        setIsSearching(false);
+      }
+
+      pendingBufferRef.current = "";
+      displayedTextRef.current = "";
+      isStreamDoneRef.current = false;
+      if (typewriterIntervalRef.current) {
+        clearInterval(typewriterIntervalRef.current);
+        typewriterIntervalRef.current = null;
+      }
+
+      function startTypewriter() {
+        if (typewriterIntervalRef.current) return;
+        typewriterIntervalRef.current = setInterval(function() {
+          if (pendingBufferRef.current.length > 0) {
+            var step = pendingBufferRef.current.length > 200 ? 20 : 4;
+            var chunk = pendingBufferRef.current.slice(0, step);
+            pendingBufferRef.current = pendingBufferRef.current.slice(step);
+            displayedTextRef.current += chunk;
+            var currentText = displayedTextRef.current;
+            setMessages(function(prev) {
+              var updated = prev.slice();
+              updated[updated.length - 1] = { role: "assistant", content: currentText };
+              return updated;
+            });
+          } else if (isStreamDoneRef.current) {
+            if (typewriterIntervalRef.current) {
+              clearInterval(typewriterIntervalRef.current);
+              typewriterIntervalRef.current = null;
+            }
+          }
+        }, 45);
       }
 
       var response = await fetch(STREAM_URL, {
@@ -282,11 +325,10 @@ export default function ChatPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           question: question,
-          chunks: topChunks,
+          materialIds: isGreeting ? [] : readyMaterialIds,
           chatHistory: chatHistory,
           summary: currentSummary,
           memories: memories,
-          questionEmbedding: questionEmbedding,
           language: "en"
         })
       });
@@ -313,16 +355,19 @@ export default function ChatPage() {
       while (true) {
         var result = await reader.read();
         if (result.done) {
+          isStreamDoneRef.current = true;
           break;
         }
         var text = decoder.decode(result.value, { stream: true });
-        assistantMessage = assistantMessage + text;
-        setMessages(function(prev) {
-          var updated = prev.slice();
-          updated[updated.length - 1] = { role: "assistant", content: assistantMessage };
-          return updated;
-        });
+        if (text !== "") {
+          setIsSearching(false);
+          assistantMessage = assistantMessage + text;
+          pendingBufferRef.current += text;
+          startTypewriter();
+        }
       }
+
+      setIsSearching(false);
 
       if (user && targetConvId) {
         await db.addMessage(targetConvId, "assistant", assistantMessage);
@@ -332,12 +377,21 @@ export default function ChatPage() {
         // Fire non-blocking memory extraction hook (skip trivial exchanges)
         var isTrivial = /^(hi|hello|hey|thanks|thank you|ok|okay|good|great|nice|bye|noted)\b/i.test(question.trim()) || assistantMessage.trim().length < 60;
         if (!isTrivial) {
-          aiExtractMemory(targetConvId, activeCourse?.id || null, question, assistantMessage).catch(function(mErr) {
-            console.error("[CHAT] Non-blocking aiExtractMemory error:", mErr);
-          });
+          aiExtractMemory(targetConvId, activeCourse?.id || null, question, assistantMessage)
+            .then(function() {
+              memoriesCacheRef.current = null;
+            })
+            .catch(function(mErr) {
+              console.error("[CHAT] Non-blocking aiExtractMemory error:", mErr);
+            });
         }
       }
     } catch (err) {
+      if (typewriterIntervalRef.current) {
+        clearInterval(typewriterIntervalRef.current);
+        typewriterIntervalRef.current = null;
+      }
+      setIsSearching(false);
       setMessages(function(prev) {
         var updated = prev.slice();
         updated.push({ role: "assistant", content: "Error: " + String(err) });
@@ -345,6 +399,7 @@ export default function ChatPage() {
       });
     }
 
+    setIsSearching(false);
     setLoading(false);
   }
 
@@ -420,6 +475,16 @@ export default function ChatPage() {
                   <div className="chat-empty-icon">
                     <Icon name="ti-brain" />
                   </div>
+                  {conversations.length > 0 ? (
+                    <button
+                      type="button"
+                      className="chat-resume-pill"
+                      onClick={function() { handleSelectConversation(conversations[0].id); }}
+                    >
+                      <Icon name="ti-arrow-back-up" />
+                      <span>Resume: <strong>{conversations[0].title}</strong></span>
+                    </button>
+                  ) : null}
                   <h2>What can I help you study?</h2>
                   <p className="chat-empty-sub">Ask about any subject. Responses are augmented by your indexed materials.</p>
                   <div className="chat-suggestions">
@@ -441,7 +506,6 @@ export default function ChatPage() {
 
               {messages.map(function(msg, index) {
                 var isUser = msg.role === "user";
-                var showTypingDots = !isUser && msg.content === "" && loading && index === messages.length - 1;
                 return (
                   <div key={index} className={"chat-row chat-row-" + msg.role}>
                     <div className="chat-avatar">
@@ -449,24 +513,27 @@ export default function ChatPage() {
                     </div>
                     <div className="chat-content">
                       <div className="chat-name">{isUser ? "You" : "Study Buddy"}</div>
-                      {showTypingDots ? (
-                        <div className="chat-typing">
-                          <span></span><span></span><span></span>
-                        </div>
+                      {isUser ? (
+                        <div className="chat-text chat-text-user">{msg.content}</div>
                       ) : (
-                        isUser ? (
-                          <div className="chat-text chat-text-user">{msg.content}</div>
-                        ) : (
-                          <div
-                            className="chat-text chat-text-ai"
-                            dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
-                          />
-                        )
+                        <div
+                          className="chat-text chat-text-ai"
+                          dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
+                        />
                       )}
                     </div>
                   </div>
                 );
               })}
+              {loading && (messages.length === 0 || messages[messages.length - 1].role === "user" || messages[messages.length - 1].content === "") ? (
+                <div className="chat-row chat-row-assistant">
+                  <div className="chat-avatar"><Icon name="ti-robot" /></div>
+                  <div className="chat-content">
+                    <div className="chat-name">Study Buddy</div>
+                    <em className="chat-typing-text">{isSearching ? "Searching course materials…" : "Typing…"}</em>
+                  </div>
+                </div>
+              ) : null}
               <div ref={messagesEndRef} />
             </div>
 

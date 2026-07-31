@@ -16,7 +16,7 @@ var MODELS = [
 ];
 
 var LAST_CALL: Record<string, number> = {};
-var MIN_GAP = 1.0;
+var MIN_GAP = 0.35;
 
 var SYSTEM_PROMPT = "" +
   "You are Study Buddy, a personalized study assistant.\n" +
@@ -84,19 +84,23 @@ async function tryGenerateStream(
   });
 }
 
+var MIN_SIMILARITY = 0.2;
+var RRF_K = 60;
+var TOP_K = 4;
+var WORD_THRESHOLD = 30;
+
 export async function POST(request: Request) {
   try {
     var body = await request.json();
     var question = body.question || "";
-    var chunks = body.chunks || [];
+    var materialIds: string[] = body.materialIds || []; // string[] — RAG search happens here, not in the client
     var chatHistory = body.chatHistory || "";
     var language = body.language || "en";
     var summary = body.summary || "";
     var memories = body.memories || []; // string[] or string
-    var questionEmbedding = body.questionEmbedding || null; // number[] from aiRetrieve
 
     console.log("[CHAT-ROUTE] question:", question.slice(0, 50));
-    console.log("[CHAT-ROUTE] chunks count:", chunks.length);
+    console.log("[CHAT-ROUTE] materialIds count:", materialIds.length);
 
     if (question === "") {
       return new Response(JSON.stringify({ error: "question is required" }), {
@@ -105,21 +109,53 @@ export async function POST(request: Request) {
       });
     }
 
-    // 1. Response Cache Check (semcache with kind='chat')
+    var dbMod = await import("../../_lib/supabase-db");
+    var llmMod = await import("../../_lib/ai/gemini");
+    var retrieveMod = await import("../../_lib/ai/retrieve");
+
+    var words = question.trim().split(/\s+/).length;
+    var isLong = words >= WORD_THRESHOLD;
+    var isShortHistory = !chatHistory || chatHistory.split("\n").length <= 4;
+    var shouldEmbed = materialIds.length > 0 || isShortHistory;
+
+    // Embed (only when materials exist or for short-history cache check) and expand in parallel
+    var embedPromise = shouldEmbed ? llmMod.llm.embedTexts([question]) : null;
+    var expandPromise: Promise<string[]> | null = null;
+    if (isLong && materialIds.length > 0) {
+      expandPromise = retrieveMod.expandQueries(question, language);
+    }
     var queryEmbedding: number[] | null = null;
-    try {
-      var dbMod = await import("../../_lib/supabase-db");
-      if (Array.isArray(questionEmbedding) && questionEmbedding.length > 0) {
-        queryEmbedding = questionEmbedding;
-      } else {
-        var llmMod = await import("../../_lib/ai/gemini");
-        var embeddings = await llmMod.llm.embedTexts([question]);
+    if (embedPromise) {
+      try {
+        var embeddings = await embedPromise;
         if (embeddings && embeddings.length > 0) {
           queryEmbedding = embeddings[0];
         }
+      } catch (_e) {
+        console.log("[CHAT-ROUTE] embedding failed, continuing without");
       }
-      var isShortHistory = !chatHistory || chatHistory.split("\n").length <= 4;
-      if (queryEmbedding && isShortHistory) {
+    }
+
+    async function searchWith(emb: number[], count: number): Promise<any[]> {
+      var searches = materialIds.map(function(id) {
+        return dbMod.sdb.vectorSearch(id, emb, count);
+      });
+      var results = await Promise.all(searches);
+      var qResults: any[] = [];
+      for (var r = 0; r < results.length; r++) {
+        var data = results[r] || [];
+        for (var j = 0; j < data.length; j++) {
+          if (data[j].similarity >= MIN_SIMILARITY) {
+            qResults.push(data[j]);
+          }
+        }
+      }
+      return qResults;
+    }
+
+    // 1. Response Cache Check (semcache with kind='chat')
+    if (queryEmbedding && isShortHistory) {
+      try {
         var cachedHit = await dbMod.sdb.searchChatCache(queryEmbedding, 0.95);
         if (cachedHit && cachedHit.answer) {
           console.log("[CHAT-ROUTE] ⚡ Cache HIT for chat answer!");
@@ -137,9 +173,55 @@ export async function POST(request: Request) {
             }
           });
         }
+      } catch (cacheErr) {
+        console.log("[CHAT-ROUTE] Cache lookup skipped/failed:", cacheErr);
       }
-    } catch (cacheErr) {
-      console.log("[CHAT-ROUTE] Cache lookup skipped/failed:", cacheErr);
+    }
+
+    // 2. RAG: semcache check, then fast/slow path, then cache chunks
+    var chunks: string[] = [];
+    if (queryEmbedding && materialIds.length > 0) {
+      try {
+        var ragCache = await dbMod.sdb.searchSemcache(queryEmbedding, 0.95);
+        if (ragCache && ragCache.answer) {
+          try {
+            var cached = JSON.parse(ragCache.answer);
+            if (Array.isArray(cached) && cached.length > 0) {
+              chunks = cached;
+            }
+          } catch (_e) {}
+        }
+      } catch (_e) {}
+
+      if (chunks.length === 0) {
+        try {
+          if (isLong && expandPromise) {
+            var queries = await expandPromise;
+            var qEmbs = await llmMod.llm.embedTexts(queries);
+            var allLists: any[][] = [];
+            for (var i = 0; i < queries.length; i++) {
+              var emb = qEmbs && qEmbs[i] ? qEmbs[i] : null;
+              if (!emb || emb.length === 0) {
+                allLists.push([]);
+                continue;
+              }
+              allLists.push(await searchWith(emb, TOP_K));
+            }
+            var fused = retrieveMod.rrfFuse(allLists, RRF_K);
+            chunks = fused.slice(0, TOP_K * 2).map(function(r: any) { return r.text; });
+          } else {
+            var direct = await searchWith(queryEmbedding, TOP_K);
+            direct.sort(function(a: any, b: any) { return b.similarity - a.similarity; });
+            chunks = direct.slice(0, TOP_K * 2).map(function(r: any) { return r.text; });
+          }
+          if (chunks.length > 0) {
+            dbMod.sdb.cacheChunks(question, queryEmbedding, chunks).catch(function(_e) {});
+          }
+        } catch (ragErr) {
+          console.log("[CHAT-ROUTE] RAG search failed, continuing without:", ragErr);
+        }
+      }
+      console.log("[CHAT-ROUTE] context chunks:", chunks.length);
     }
 
     // 2. Build Memory & Context Blocks

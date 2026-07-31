@@ -465,6 +465,36 @@ async function searchChatCache(queryEmbedding: number[], matchThreshold: number 
   return result.data[0];
 }
 
+async function searchSemcache(queryEmbedding: number[], matchThreshold: number = 0.95) {
+  var client = getClient();
+  var embedding = "[" + queryEmbedding.join(",") + "]";
+  var result = await client.rpc("search_semcache", {
+    query_embedding: embedding,
+    match_threshold: matchThreshold
+  });
+  if (result.error) {
+    console.error("searchSemcache error:", result.error);
+    return null;
+  }
+  if (!result.data || result.data.length === 0) {
+    return null;
+  }
+  return result.data[0];
+}
+
+async function cacheChunks(question: string, queryEmbedding: number[], chunks: string[]) {
+  var client = getClient();
+  var embedding = "[" + queryEmbedding.join(",") + "]";
+  var result = await client.from("semcache").insert({
+    question: question,
+    answer: JSON.stringify(chunks),
+    embedding: embedding
+  });
+  if (result.error) {
+    console.error("cacheChunks error:", result.error.message);
+  }
+}
+
 async function upsertEpisodeMemory(
   userId: string,
   courseId: string | null,
@@ -555,6 +585,8 @@ export var sdb = {
   updateConversationSummary: updateConversationSummary,
   cacheChatAnswer: cacheChatAnswer,
   searchChatCache: searchChatCache,
+  searchSemcache: searchSemcache,
+  cacheChunks: cacheChunks,
   uploadFile: uploadFile,
   getPublicUrl: getPublicUrl
 };

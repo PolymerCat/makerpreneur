@@ -45,6 +45,7 @@ export default function MaterialsPage() {
   var [materials, setMaterials] = React.useState<Material[]>([]);
   var [activeTab, setActiveTab] = React.useState("all");
   var [uploading, setUploading] = React.useState(false);
+  var [uploadStatusText, setUploadStatusText] = React.useState("");
   var [chunkCounts, setChunkCounts] = React.useState<Record<string, number>>({});
 
   async function loadMaterials(): Promise<void> {
@@ -106,10 +107,10 @@ export default function MaterialsPage() {
       }
 
       await db.update("materials", materialId, {
-        title: metadata.title,
-        category: metadata.category,
-        year: metadata.year,
-        semester: metadata.semester,
+        title: metadata?.title || fileName.replace(/\.[^/.]+$/, ""),
+        category: metadata?.category || "regular",
+        year: metadata?.year || new Date().getFullYear(),
+        semester: metadata?.semester || "1",
         status: "indexing"
       });
       await loadMaterials();
@@ -155,54 +156,65 @@ export default function MaterialsPage() {
     if (!files || files.length === 0) {
       return;
     }
-    var file = files[0];
-    var fileName = file.name;
-    var fileType = file.type;
+    var fileList = Array.from(files);
     setUploading(true);
 
-    var insertMaterial: any = null;
+    for (var f = 0; f < fileList.length; f++) {
+      var file = fileList[f];
+      var fileName = file.name;
+      var fileType = file.type;
+      var total = fileList.length;
 
-    try {
-      insertMaterial = await db.insert("materials", {
-        courseId: courseId,
-        title: fileName.replace(/\.[^/.]+$/, ""),
-        fileUrl: "",
-        fileType: fileType,
-        status: "pending",
-        createdAt: new Date().toISOString(),
-        category: "regular",
-        year: new Date().getFullYear(),
-        semester: "1"
-      });
-      await loadMaterials();
+      if (total > 1) {
+        setUploadStatusText("Processing " + (f + 1) + " of " + total + " (" + fileName + ")...");
+      } else {
+        setUploadStatusText("Processing " + fileName + "...");
+      }
 
-      var arrayBuffer = await file.arrayBuffer();
-      var storagePath = courseId + "/" + insertMaterial.id + "/" + fileName;
-
-      await db.update("materials", insertMaterial.id, { status: "uploading" });
-      await loadMaterials();
+      var insertMaterial: any = null;
 
       try {
-        await db.uploadFile("materials", storagePath, arrayBuffer, fileType);
-      } catch (uploadErr) {
-        throw new Error("Upload failed: " + String(uploadErr));
-      }
-
-      var publicUrl = db.getPublicUrl("materials", storagePath);
-      await db.update("materials", insertMaterial.id, { fileUrl: publicUrl });
-
-      await extractAndIndex(insertMaterial.id, storagePath, fileName, fileType);
-    } catch (err) {
-      console.error("Upload failed", err);
-      if (insertMaterial) {
-        await db.update("materials", insertMaterial.id, { status: "failed" });
+        insertMaterial = await db.insert("materials", {
+          courseId: courseId,
+          title: fileName.replace(/\.[^/.]+$/, ""),
+          fileUrl: "",
+          fileType: fileType,
+          status: "pending",
+          createdAt: new Date().toISOString(),
+          category: "regular",
+          year: new Date().getFullYear(),
+          semester: "1"
+        });
         await loadMaterials();
+
+        var arrayBuffer = await file.arrayBuffer();
+        var storagePath = courseId + "/" + insertMaterial.id + "/" + fileName;
+
+        await db.update("materials", insertMaterial.id, { status: "uploading" });
+        await loadMaterials();
+
+        try {
+          await db.uploadFile("materials", storagePath, arrayBuffer, fileType);
+        } catch (uploadErr) {
+          throw new Error("Upload failed: " + String(uploadErr));
+        }
+
+        var publicUrl = db.getPublicUrl("materials", storagePath);
+        await db.update("materials", insertMaterial.id, { fileUrl: publicUrl });
+
+        await extractAndIndex(insertMaterial.id, storagePath, fileName, fileType);
+      } catch (err) {
+        console.error("Upload failed for " + fileName, err);
+        if (insertMaterial) {
+          await db.update("materials", insertMaterial.id, { status: "failed" });
+          await loadMaterials();
+        }
       }
-      setUploading(false);
-      return;
     }
 
+    e.target.value = "";
     setUploading(false);
+    setUploadStatusText("");
   }
 
   async function handleIndex(materialId: string): Promise<void> {
@@ -280,8 +292,8 @@ export default function MaterialsPage() {
 
       <Card>
         <div className="upload-area">
-          <input type="file" accept=".pdf,.docx,.pptx,.txt" onChange={handleFileChange} disabled={uploading} />
-          {uploading ? <span className="upload-status">Processing...</span> : null}
+          <input type="file" accept=".pdf,.docx,.pptx,.txt" multiple onChange={handleFileChange} disabled={uploading} />
+          {uploading ? <span className="upload-status">{uploadStatusText || "Processing..."}</span> : null}
         </div>
       </Card>
 

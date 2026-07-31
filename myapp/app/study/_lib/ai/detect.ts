@@ -13,13 +13,13 @@ async function detectMetadata(
     "Return JSON: { title: string, year: number, semester: string, category: 'regular'|'exam_paper', courseCode: string }";
   try {
     var result = await llm.generateJson(detectPrompt, 0.2, 1000, "detect");
-    if (result.year < MIN_YEAR) {
-      result.year = MIN_YEAR;
-    }
-    if (result.year > MAX_YEAR) {
-      result.year = MAX_YEAR;
-    }
-    return result;
+    return {
+      title: result.title || fileName,
+      year: (typeof result.year === "number" && result.year >= MIN_YEAR && result.year <= MAX_YEAR) ? result.year : new Date().getFullYear(),
+      semester: result.semester ? String(result.semester) : "1",
+      category: result.category || "regular",
+      courseCode: result.courseCode || ""
+    };
   } catch (err) {
     return {
       title: fileName,

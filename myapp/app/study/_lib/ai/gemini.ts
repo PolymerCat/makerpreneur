@@ -23,7 +23,7 @@ var EMBED_MODELS = [
   "text-embedding-004"
 ];
 
-var MIN_GAP = 1.0;
+var MIN_GAP = 0.35;
 var lastCallTime: Record<string, number> = {};
 
 async function generate(
