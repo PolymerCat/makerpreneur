@@ -3,8 +3,6 @@
 import React from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHero } from "@/components/layout/PageHero";
-import { Card } from "@/components/ui/Card";
-import Link from "next/link";
 import { db } from "../../_lib/db";
 import type { Deck, Card as CardType } from "../../_lib/types";
 import FlashcardReview from "../../_components/FlashcardReview";
@@ -45,22 +43,6 @@ export default function DeckReviewPage(props: { params: Promise<{ deckId: string
 
   async function handleUpdateCard(cardId: string, updates: any): Promise<void> {
     await db.update("cards", cardId, updates);
-    await loadData();
-  }
-
-  async function handleResetAll(): Promise<void> {
-    if (!window.confirm("Reset all cards in this deck?")) {
-      return;
-    }
-    for (var i = 0; i < cards.length; i++) {
-      await db.update("cards", cards[i].id, {
-        easiness: 2.5,
-        interval: 0,
-        repetitions: 0,
-        dueDate: new Date().toISOString()
-      });
-    }
-    await loadData();
   }
 
   if (!deck) {
@@ -82,27 +64,15 @@ export default function DeckReviewPage(props: { params: Promise<{ deckId: string
 
       <CourseBar />
 
-      <div className="review-controls">
-        <Link href="/study/flashcards" className="btn btn-sm">
-          <i className="ti ti-arrow-left"></i>
-          {" Back to Decks"}
-        </Link>
-        <button className="btn btn-sm" onClick={function() { setFocusMode(!focusMode); }}>
-          {focusMode ? "Exit Focus Mode" : "Focus Mode"}
-        </button>
-        <button className="btn btn-sm btn-ghost" onClick={handleResetAll}>
-          Reset All
-        </button>
-      </div>
-
-      <Card>
+      <div className="flashcard-review-slot">
         <FlashcardReview
           cards={cards}
           onUpdateCard={handleUpdateCard}
           focusMode={focusMode}
+          onEnterFocusMode={function() { setFocusMode(true); }}
           onExitFocusMode={function() { setFocusMode(false); }}
         />
-      </Card>
+      </div>
     </AppShell>
   );
 }

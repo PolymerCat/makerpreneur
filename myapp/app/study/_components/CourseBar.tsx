@@ -19,9 +19,8 @@ export function CourseBar(): React.JSX.Element | null {
   return (
     <div className="course-bar">
       {isSubPage ? (
-        <Link href="/study" className="study-back-btn">
+        <Link href="/study" className="study-back-btn" title="Back to Study">
           <Icon name="ti-arrow-left" />
-          <span>Back to Study</span>
         </Link>
       ) : null}
       <span className="course-badge">

@@ -134,9 +134,8 @@ export default function QuizTakePage(props: { params: Promise<{ id: string }> })
       <CourseBar />
 
       <div className="back-link">
-        <Link href="/study/quizzes" className="btn btn-sm">
+        <Link href="/study" className="btn btn-sm" title="Back to Study">
           <i className="ti ti-arrow-left"></i>
-          {" Back to Quizzes"}
         </Link>
       </div>
 

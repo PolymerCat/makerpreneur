@@ -780,6 +780,14 @@ async function getCourseAnalytics(courseId: string, userId: string, courseName?:
     ];
   }
 
+  topics = topics.map(function(t) {
+    if (!Array.isArray(t.pastYearQuestions)) {
+      t.pastYearQuestions = [];
+      t.pastYearQuestionsLang = "";
+    }
+    return t;
+  });
+
   // 4. Spaced-repetition backlog health
   var spacedRepetitionHealth = 85;
   try {
