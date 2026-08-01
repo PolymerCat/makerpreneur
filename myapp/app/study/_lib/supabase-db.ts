@@ -360,7 +360,7 @@ async function addMessage(conversationId: string, role: string, content: string)
     role: role,
     content: content,
     created_at: now
-  });
+  }).select("id");
   if (result.error) {
     throw new Error("addMessage: " + result.error.message);
   }
@@ -370,6 +370,15 @@ async function addMessage(conversationId: string, role: string, content: string)
     .eq("id", conversationId);
   if (updateResult.error) {
     console.error("addMessage bump updated_at:", updateResult.error.message);
+  }
+  return (result.data && result.data[0] && result.data[0].id) || null;
+}
+
+async function updateMessage(id: string, content: string) {
+  var client = getClient();
+  var result = await client.from("messages").update({ content: content }).eq("id", id);
+  if (result.error) {
+    throw new Error("updateMessage: " + result.error.message);
   }
 }
 
@@ -1004,6 +1013,7 @@ export var sdb = {
   deleteConversation: deleteConversation,
   listMessages: listMessages,
   addMessage: addMessage,
+  updateMessage: updateMessage,
   renameConversation: renameConversation,
   listMemories: listMemories,
   memorySearch: memorySearch,

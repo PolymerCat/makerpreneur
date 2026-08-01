@@ -1,5 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { stripCitations } from "../../_lib/ai/citations";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { downloadImageParts, type GeminiImagePart } from "../../_lib/chat-images";
 
 var GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 
@@ -62,7 +64,7 @@ var SYSTEM_PROMPT = "" +
 async function tryGenerateStream(
   client: GoogleGenAI,
   model: string,
-  prompt: string
+  contents: string | Array<{ role: string; parts: Array<GeminiImagePart | { text: string }> }>
 ) {
   var now = Date.now();
   var last = LAST_CALL[model] || 0;
@@ -75,7 +77,7 @@ async function tryGenerateStream(
 
   return client.models.generateContentStream({
     model: model,
-    contents: prompt,
+    contents: contents,
     config: {
       systemInstruction: SYSTEM_PROMPT,
       temperature: 0.3,
@@ -98,9 +100,11 @@ export async function POST(request: Request) {
     var language = body.language || "en";
     var summary = body.summary || "";
     var memories = body.memories || []; // string[] or string
+    var images: string[] = body.images || []; // storage paths of images to attach this turn
 
     console.log("[CHAT-ROUTE] question:", question.slice(0, 50));
     console.log("[CHAT-ROUTE] materialIds count:", materialIds.length);
+    console.log("[CHAT-ROUTE] images count:", images.length);
 
     if (question === "") {
       return new Response(JSON.stringify({ error: "question is required" }), {
@@ -116,7 +120,8 @@ export async function POST(request: Request) {
     var words = question.trim().split(/\s+/).length;
     var isLong = words >= WORD_THRESHOLD;
     var isShortHistory = !chatHistory || chatHistory.split("\n").length <= 4;
-    var shouldEmbed = materialIds.length > 0 || isShortHistory;
+    // Image turns skip embed/cache/RAG: nothing to retrieve for a raw image.
+    var shouldEmbed = images.length === 0 && (materialIds.length > 0 || isShortHistory);
 
     // Embed (only when materials exist or for short-history cache check) and expand in parallel
     var embedPromise = shouldEmbed ? llmMod.llm.embedTexts([question]) : null;
@@ -269,6 +274,13 @@ export async function POST(request: Request) {
     var prompt = promptParts.join("\n\n");
 
     var client = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+    var contents: string | Array<{ role: string; parts: Array<GeminiImagePart | { text: string }> }> = prompt;
+    if (images.length > 0) {
+      var supabase = await createServerSupabaseClient();
+      var imageParts = await downloadImageParts(supabase, images);
+      contents = [{ role: "user", parts: [...imageParts, { text: prompt }] }];
+    }
+
     var stream: AsyncGenerator<unknown> | null = null;
     var lastError: string = "";
 
@@ -276,7 +288,7 @@ export async function POST(request: Request) {
       var model = MODELS[m];
       try {
         console.log("[GEMINI] trying " + model + " for chat");
-        stream = await tryGenerateStream(client, model, prompt);
+        stream = await tryGenerateStream(client, model, contents);
         lastError = "";
         break;
       } catch (err: unknown) {

@@ -13,6 +13,9 @@ import { aiExtractMemory } from "../actions";
 import type { Material } from "../_lib/types";
 
 var STREAM_URL = "/study/api/chat";
+var IMAGE_MAX_COUNT = 5;
+var IMAGE_MAX_SIZE = 8 * 1024 * 1024;
+var IMAGE_MAX_DIM = 2048; // Gemini downsamples to 3072 max; 2048 keeps math legible, half the bytes
 
 var SUGGESTIONS = [
   "What is mMTC in 5G?",
@@ -22,6 +25,7 @@ var SUGGESTIONS = [
 ];
 
 type ChatMessage = { role: string; content: string };
+type Attachment = { id: string; name: string; objectUrl: string; file: File };
 type Conversation = {
   id: string;
   userId: string;
@@ -63,8 +67,12 @@ export default function ChatPage() {
   var [historyLoading, setHistoryLoading] = React.useState(false);
   var [sources, setSources] = React.useState<{ material: Material; chunkCount: number }[]>([]);
   var [isSearching, setIsSearching] = React.useState(false);
+  var [attachments, setAttachments] = React.useState<Attachment[]>([]);
+  var [attachError, setAttachError] = React.useState("");
+  var [lightbox, setLightbox] = React.useState<{ url: string; caption: string } | null>(null);
   var messagesEndRef = React.useRef<HTMLDivElement>(null);
   var textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  var fileInputRef = React.useRef<HTMLInputElement>(null);
   var loadedUserIdRef = React.useRef<string | null>(null);
   var memoriesCacheRef = React.useRef<{ courseId: string; list: string[] } | null>(null);
 
@@ -196,20 +204,117 @@ export default function ChatPage() {
     ta.style.height = next + "px";
   }
 
+  function compressImage(file: File): Promise<Blob> {
+    return new Promise(function(resolve, reject) {
+      var img = new Image();
+      img.onload = function() {
+        var scale = Math.min(1, IMAGE_MAX_DIM / Math.max(img.width, img.height));
+        var canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        var ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Canvas not supported"));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(function(blob) {
+          if (blob) {
+            resolve(blob);
+          } else {
+            canvas.toBlob(function(jblob) {
+              if (jblob) resolve(jblob);
+              else reject(new Error("Image compression failed"));
+            }, "image/jpeg", 0.85);
+          }
+        }, "image/webp", 0.85);
+      };
+      img.onerror = function() { reject(new Error("Could not read image")); };
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  function handleFiles(e: React.ChangeEvent<HTMLInputElement>): void {
+    var files = Array.from(e.target.files || []);
+    e.target.value = "";
+    var valid = files.filter(function(f) { return f.type.startsWith("image/") && f.size <= IMAGE_MAX_SIZE; });
+    var room = IMAGE_MAX_COUNT - attachments.length;
+    var overflow = Math.max(0, valid.length - room);
+    var added: Attachment[] = [];
+    for (var i = 0; i < valid.length && room > 0; i++) {
+      var f = valid[i];
+      added.push({ id: crypto.randomUUID(), name: f.name, objectUrl: URL.createObjectURL(f), file: f });
+      room--;
+    }
+    if (overflow > 0) {
+      setAttachError("Max " + IMAGE_MAX_COUNT + " images. " + overflow + " image" + (overflow === 1 ? " was" : "s were") + " skipped.");
+    } else if (added.length === 0) {
+      setAttachError("Max " + IMAGE_MAX_COUNT + " images, 8MB each.");
+    } else {
+      setAttachError("");
+    }
+    if (added.length > 0) {
+      setAttachments(function(prev) { return prev.concat(added); });
+    }
+  }
+
+  function removeAttachment(id: string): void {
+    setAttachments(function(prev) {
+      var removed = prev.find(function(a) { return a.id === id; });
+      if (removed) {
+        URL.revokeObjectURL(removed.objectUrl);
+      }
+      return prev.filter(function(a) { return a.id !== id; });
+    });
+  }
+
+  function renderUserContent(content: string) {
+    var parts: React.ReactNode[] = [];
+    var re = /!\[([^\]]*)\]\(([^)\s]+)\)/g;
+    var last = 0;
+    var m: RegExpExecArray | null;
+    var key = 0;
+    while ((m = re.exec(content)) !== null) {
+      if (m.index > last) {
+        parts.push(<span key={key++}>{content.slice(last, m.index)}</span>);
+      }
+      var url = db.getPublicUrl("materials", m[2]);
+      var cap = m[1] || "";
+      parts.push(
+        <figure key={key++} className="chat-image-wrap">
+          <img
+            className="chat-image"
+            src={url}
+            alt={cap || "attached image"}
+            role="button"
+            tabIndex={0}
+            onClick={function() { setLightbox({ url: url, caption: cap }); }}
+            onKeyDown={function(e) { if (e.key === "Enter" || e.key === " ") { setLightbox({ url: url, caption: cap }); } }}
+          />
+          {cap ? <figcaption className="chat-image-caption">{cap}</figcaption> : null}
+        </figure>
+      );
+      last = m.index + m[0].length;
+    }
+    if (last < content.length) {
+      parts.push(<span key={key++}>{content.slice(last)}</span>);
+    }
+    return parts;
+  }
+
   async function handleSend(): Promise<void> {
-    if (inputValue.trim() === "" || loading) {
+    if ((inputValue.trim() === "" && attachments.length === 0) || loading) {
       return;
     }
-    var question = inputValue.trim();
+    if (!user && attachments.length > 0) {
+      setAttachError("Sign in to send images with your message.");
+      return;
+    }
+    var question = inputValue.trim() || "Describe the attached images.";
     setInputValue("");
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
-    setMessages(function(prev) {
-      var updated = prev.slice();
-      updated.push({ role: "user", content: question });
-      return updated;
-    });
     setLoading(true);
 
     var title = question.slice(0, 60);
@@ -217,10 +322,38 @@ export default function ChatPage() {
     if (user && !targetConvId) {
       targetConvId = await ensureConversation(title);
     }
+
+    var uploadedPaths: string[] = [];
+    var userContent = question;
+    var userMsgIndex = messages.length;
+    if (user && targetConvId && attachments.length > 0) {
+      for (var ai = 0; ai < attachments.length; ai++) {
+        var att = attachments[ai];
+        var blob = await compressImage(att.file);
+        var ext = blob.type === "image/webp" ? "webp" : "jpeg";
+        var path = (activeCourse?.id || "") + "/chat/" + targetConvId + "/" + crypto.randomUUID() + "." + ext;
+        await db.uploadFile("materials", path, blob, blob.type);
+        uploadedPaths.push(path);
+        userContent = userContent + "\n![](" + path + ")";
+      }
+      attachments.forEach(function(a) { URL.revokeObjectURL(a.objectUrl); });
+      setAttachments([]);
+      setAttachError("");
+    }
+
+    setMessages(function(prev) {
+      var updated = prev.slice();
+      updated.push({ role: "user", content: userContent });
+      return updated;
+    });
+
+    var userMsgId: string | null = null;
     if (user && targetConvId) {
-      db.addMessage(targetConvId, "user", question).catch(function(err) {
+      try {
+        userMsgId = await db.addMessage(targetConvId, "user", userContent);
+      } catch (err) {
         console.error("addMessage user error:", err);
-      });
+      }
     }
 
     try {
@@ -228,7 +361,10 @@ export default function ChatPage() {
       var historyLines: string[] = [];
       for (var i = 0; i < recent.length; i++) {
         var role = recent[i].role === "user" ? "User" : "Assistant";
-        historyLines.push(role + ": " + recent[i].content);
+        var histContent = recent[i].content.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, function(_m: string, alt: string) {
+          return alt !== "" ? "[image: " + alt + "]" : "[image]";
+        });
+        historyLines.push(role + ": " + histContent);
       }
       var chatHistory = historyLines.join("\n");
 
@@ -246,6 +382,23 @@ export default function ChatPage() {
             memories = memList.map(function(m: any) { return "[" + m.type + "] " + m.content; });
             memoriesCacheRef.current = { courseId: activeCourse.id, list: memories };
           } catch (_mErr) {}
+        }
+      }
+
+      // ponytail: sliding window — re-attach bytes of images from the last 2 user
+      // turns; older images survive only as [image: caption] tokens in history.
+      // Ceiling: heuristics don't know intent; explicit re-attach via paperclip is the upgrade path.
+      var slidingImages: string[] = [];
+      var userTurns = 0;
+      for (var si = messages.length - 1; si >= 0 && userTurns < 2; si--) {
+        if (messages[si].role !== "user") {
+          continue;
+        }
+        userTurns++;
+        var tokenRe = /!\[[^\]]*\]\(([^)\s]+)\)/g;
+        var tm: RegExpExecArray | null;
+        while ((tm = tokenRe.exec(messages[si].content)) !== null) {
+          slidingImages.push(tm[1]);
         }
       }
 
@@ -303,7 +456,8 @@ export default function ChatPage() {
           chatHistory: chatHistory,
           summary: currentSummary,
           memories: memories,
-          language: "en"
+          language: "en",
+          images: uploadedPaths.concat(slidingImages)
         })
       });
 
@@ -357,6 +511,37 @@ export default function ChatPage() {
             })
             .catch(function(mErr) {
               console.error("[CHAT] Non-blocking aiExtractMemory error:", mErr);
+            });
+        }
+        // Non-blocking image captions: store description as the token alt text so
+        // later turns remember the image without re-sending its bytes.
+        if (userMsgId && uploadedPaths.length > 0) {
+          fetch("/study/api/caption", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ paths: uploadedPaths })
+          })
+            .then(function(r) { return r.json(); })
+            .then(function(data: { captions?: string[] }) {
+              var caps = data.captions || [];
+              var captioned = userContent;
+              for (var ci = 0; ci < uploadedPaths.length; ci++) {
+                var cap = caps[ci] || "User uploaded image";
+                captioned = captioned.replace("![](" + uploadedPaths[ci] + ")", "![" + cap + "](" + uploadedPaths[ci] + ")");
+              }
+              return db.updateMessage(userMsgId!, captioned).then(function() { return captioned; });
+            })
+            .then(function(captioned: string) {
+              setMessages(function(prev) {
+                var updated = prev.slice();
+                if (updated[userMsgIndex]) {
+                  updated[userMsgIndex] = { role: "user", content: captioned };
+                }
+                return updated;
+              });
+            })
+            .catch(function(cErr) {
+              console.error("[CHAT] caption update failed:", cErr);
             });
         }
       }
@@ -485,7 +670,7 @@ export default function ChatPage() {
                     <div className="chat-content">
                       <div className="chat-name">{isUser ? "You" : "Study Buddy"}</div>
                       {isUser ? (
-                        <div className="chat-text chat-text-user">{msg.content}</div>
+                        <div className="chat-text chat-text-user">{renderUserContent(msg.content)}</div>
                       ) : (
                         <div
                           className="chat-text chat-text-ai"
@@ -509,7 +694,52 @@ export default function ChatPage() {
             </div>
 
             <div className="chat-compose">
-              <div className="chat-input-wrap">
+              {attachError ? <div className="chat-attach-error">{attachError}</div> : null}
+              <div className={"chat-input-wrap" + (attachments.length > 0 ? " has-attach" : "")}>
+                {attachments.length > 0 ? (
+                  <div className="chat-attach-row">
+                    {attachments.map(function(a) {
+                      return (
+                        <div key={a.id} className="chat-attach-thumb">
+                          <img
+                            src={a.objectUrl}
+                            alt={a.name}
+                            role="button"
+                            tabIndex={0}
+                            onClick={function() { setLightbox({ url: a.objectUrl, caption: a.name }); }}
+                            onKeyDown={function(e) { if (e.key === "Enter" || e.key === " ") { setLightbox({ url: a.objectUrl, caption: a.name }); } }}
+                          />
+                          <button
+                            type="button"
+                            className="chat-attach-remove"
+                            onClick={function() { removeAttachment(a.id); }}
+                            title="Remove"
+                          >
+                            <Icon name="ti-x" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
+                <div className="chat-input-row">
+                <button
+                  type="button"
+                  className="chat-attach"
+                  onClick={function() { fileInputRef.current?.click(); }}
+                  disabled={loading}
+                  title="Attach images"
+                >
+                  <Icon name="ti-paperclip" />
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="chat-file-input"
+                  onChange={handleFiles}
+                />
                 <textarea
                   ref={textareaRef}
                   className="chat-textarea"
@@ -522,13 +752,14 @@ export default function ChatPage() {
                 />
                 <button
                   type="button"
-                  className={"chat-send " + (inputValue.trim() === "" || loading ? "disabled" : "")}
+                  className={"chat-send " + ((inputValue.trim() === "" && attachments.length === 0) || loading ? "disabled" : "")}
                   onClick={handleSend}
-                  disabled={inputValue.trim() === "" || loading}
+                  disabled={(inputValue.trim() === "" && attachments.length === 0) || loading}
                   title="Send"
                 >
                   <Icon name="ti-arrow-up" />
                 </button>
+                </div>
               </div>
             </div>
           </div>
@@ -606,6 +837,32 @@ export default function ChatPage() {
           </div>
         ) : null}
       </div>
+
+      {lightbox ? (
+        <div
+          className="chat-lightbox"
+          role="button"
+          tabIndex={0}
+          onClick={function() { setLightbox(null); }}
+          onKeyDown={function(e) { if (e.key === "Escape" || e.key === "Enter") { setLightbox(null); } }}
+        >
+          <button
+            type="button"
+            className="chat-lightbox-close"
+            onClick={function(e) { e.stopPropagation(); setLightbox(null); }}
+            title="Close"
+          >
+            <Icon name="ti-x" />
+          </button>
+          <img
+            className="chat-lightbox-img"
+            src={lightbox.url}
+            alt={lightbox.caption || "attached image"}
+            onClick={function(e) { e.stopPropagation(); }}
+          />
+          {lightbox.caption ? <div className="chat-lightbox-caption">{lightbox.caption}</div> : null}
+        </div>
+      ) : null}
     </AppShell>
   );
 }
