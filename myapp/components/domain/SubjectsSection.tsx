@@ -95,7 +95,7 @@ export function SubjectsSection() {
                 border: "1px solid var(--line)",
                 borderRadius: "var(--radius)",
                 padding: 11,
-                fontSize: 14,
+                fontSize: 16,
                 fontFamily: "inherit",
                 marginTop: 7,
                 resize: "vertical",

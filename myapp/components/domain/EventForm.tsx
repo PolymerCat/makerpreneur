@@ -156,7 +156,7 @@ const selectStyle: React.CSSProperties = {
   border: "1px solid var(--line)",
   borderRadius: "var(--radius)",
   padding: "0 12px",
-  fontSize: 14,
+  fontSize: 16,
   background: "var(--surface)",
 };
 
@@ -167,6 +167,6 @@ const textareaStyle: React.CSSProperties = {
   borderRadius: "var(--radius)",
   padding: 11,
   fontFamily: "inherit",
-  fontSize: 14,
+  fontSize: 16,
   resize: "vertical",
 };

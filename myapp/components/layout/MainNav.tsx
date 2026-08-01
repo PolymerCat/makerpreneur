@@ -7,9 +7,10 @@ import { Icon } from "@/components/ui/Icon";
 
 type MainNavProps = {
   items: NavItem[];
+  onNavigate?: () => void;
 };
 
-export function MainNav({ items }: MainNavProps) {
+export function MainNav({ items, onNavigate }: MainNavProps) {
   const pathname = usePathname();
 
   return (
@@ -18,7 +19,7 @@ export function MainNav({ items }: MainNavProps) {
         const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
 
         return (
-          <Link className={isActive ? "active" : ""} href={item.href} key={item.href}>
+          <Link className={isActive ? "active" : ""} href={item.href} key={item.href} onClick={onNavigate}>
             <Icon name={item.icon} />
             <span>{item.label}</span>
           </Link>

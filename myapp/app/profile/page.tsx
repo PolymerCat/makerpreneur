@@ -81,7 +81,7 @@ export default function ProfilePage() {
                   border: "1px solid var(--line)",
                   borderRadius: "var(--radius)",
                   padding: "0 12px",
-                  fontSize: 14,
+                  fontSize: 16,
                   background: "var(--surface)",
                   marginTop: 7,
                 }}

@@ -25,11 +25,18 @@
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   min-height: 100vh;
+  min-height: 100dvh;
   margin: 0;
+  overscroll-behavior-y: none;
   background: var(--background);
   color: var(--text);
   font-family: Arial, Helvetica, sans-serif;
@@ -41,12 +48,20 @@ a {
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
 
-input {
+input,
+select,
+textarea {
   width: 100%;
+  font-size: 16px;
+}
+
+input {
   height: 44px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -54,29 +69,124 @@ input {
 }
 
 .app-shell {
-  display: grid;
+  display: flex;
   min-height: 100vh;
-  grid-template-columns: 264px minmax(0, 1fr);
+  min-height: 100dvh;
+  flex-direction: column;
 }
 
-.sidebar {
+.topbar {
   position: sticky;
   top: 0;
+  z-index: 40;
   display: flex;
-  height: 100vh;
-  flex-direction: column;
-  gap: 24px;
-  border-right: 1px solid var(--line);
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  border-bottom: 1px solid var(--line);
   background: var(--surface);
-  padding: 24px;
+  padding: 0 20px;
+}
+
+.topbar-burger {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand-deep);
+  cursor: pointer;
+  font-size: 20px;
+  transition: background 0.15s;
+}
+
+.topbar-burger:hover {
+  background: #e2ddfa;
 }
 
 .content-shell {
   display: flex;
   width: min(1180px, 100%);
+  margin: 0 auto;
   flex-direction: column;
   gap: 28px;
   padding: 32px;
+}
+
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(20, 18, 40, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.drawer-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.drawer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 60;
+  display: flex;
+  width: min(300px, 88vw);
+  transform: translateX(-100%);
+  flex-direction: column;
+  gap: 20px;
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: 12px 0 32px rgba(30, 26, 70, 0.12);
+  padding: calc(20px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom));
+  transition: transform 0.22s ease;
+}
+
+.drawer.open {
+  transform: translateX(0);
+}
+
+.drawer-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.drawer-head strong {
+  flex: 1;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.drawer-close {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-strong);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.drawer-close:hover {
+  color: var(--brand-deep);
+}
+
+.drawer-foot {
+  margin-top: auto;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .brand-block {
@@ -502,6 +612,21 @@ input {
 
 /* ============ Planner / Calendar ============ */
 
+.command-page {
+  display: flex;
+  max-width: 1200px;
+  margin: 0 auto;
+  flex-direction: column;
+  gap: 24px;
+  padding: 32px;
+}
+
+@media (max-width: 620px) {
+  .command-page {
+    padding: 16px;
+  }
+}
+
 .planner-toolbar {
   display: flex;
   align-items: center;
@@ -643,49 +768,9 @@ input {
 }
 
 @media (max-width: 980px) {
-  .app-shell {
-    display: block;
-    padding-bottom: 74px;
-  }
-
-  .sidebar {
-    position: static;
-    height: auto;
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-  }
-
-  .sidebar .main-nav {
-    position: fixed;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    z-index: 10;
-    display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: 0;
-    border-top: 1px solid var(--line);
-    background: var(--surface);
-    padding: 6px;
-  }
-
-  .main-nav a {
-    flex-direction: column;
-    gap: 3px;
-    padding: 7px 4px;
-    text-align: center;
-  }
-
-  .main-nav a span {
-    overflow: hidden;
-    max-width: 100%;
-    font-size: 10px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
   .content-shell {
     padding: 22px;
+    padding-top: calc(22px + env(safe-area-inset-top));
   }
 
   .page-hero,
@@ -704,10 +789,11 @@ input {
 @media (max-width: 620px) {
   .content-shell {
     padding: 16px;
+    padding-top: calc(16px + env(safe-area-inset-top));
   }
 
   .page-hero {
-    padding: 22px;
+    padding: 20px;
   }
 
   .metric-grid,
@@ -715,5 +801,65 @@ input {
   .metric-grid.compact,
   .responsive-grid {
     grid-template-columns: 1fr;
+  }
+
+  /* Larger touch targets */
+  .small-action,
+  .button-link,
+  .secondary-button {
+    min-height: 40px;
+  }
+
+  /* Let list rows wrap instead of overflowing */
+  .row-card,
+  .media-card,
+  .contact-card {
+    flex-wrap: wrap;
+  }
+
+  /* Calendar: dots instead of full event pills */
+  .calendar-day {
+    min-height: 56px;
+    padding: 4px;
+    gap: 3px;
+  }
+
+  .cal-event {
+    width: 9px;
+    height: 9px;
+    overflow: visible;
+    border-radius: 50%;
+    padding: 0;
+    font-size: 0;
+    line-height: 0;
+    background: currentColor !important;
+  }
+
+  .cal-event.more {
+    width: auto;
+    height: auto;
+    border-radius: 0;
+    padding: 0;
+    font-size: 10px;
+    line-height: 1.2;
+    background: none !important;
+    color: var(--muted);
+  }
+
+  /* Modal becomes a bottom sheet */
+  .modal-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .modal {
+    width: 100%;
+    max-height: 92vh;
+    border-radius: 16px 16px 0 0;
+  }
+
+  .planner-toolbar {
+    flex-direction: column;
+    align-items: stretch;
   }
 }

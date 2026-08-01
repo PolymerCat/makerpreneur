@@ -118,7 +118,7 @@ export default function CommandPage() {
   }
 
   return (
-    <main style={{ maxWidth: 1200, margin: "0 auto", padding: 32, display: "flex", flexDirection: "column", gap: 24 }}>
+    <main className="command-page">
       <div className="brand-block" style={{ marginBottom: 8 }}>
         <span className="brand-mark">SH</span>
         <div>
