@@ -25,7 +25,7 @@ export function CourseBar(): React.JSX.Element | null {
         </Link>
       ) : null}
       <span className="course-badge">
-        {activeCourse.name}
+        {activeCourse.subjectCode ? activeCourse.subjectCode + " • " : ""}{activeCourse.name}
       </span>
       <button className="btn btn-ghost btn-sm" onClick={clearActiveCourse}>
         Switch course

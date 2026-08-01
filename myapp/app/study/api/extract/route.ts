@@ -31,7 +31,15 @@ export async function POST(request: Request) {
     var arrayBuffer = await fileBlob.arrayBuffer();
     var fileBuffer = new Uint8Array(arrayBuffer);
 
-    var doc = await pdfjsLib.getDocument({ data: fileBuffer }).promise;
+    // Suppress standard font warnings (not needed in server-side Node context)
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "";
+    var doc = await pdfjsLib.getDocument({
+      data: fileBuffer,
+      verbosity: 0,
+      useWorkerFetch: false,
+      isEvalSupported: false,
+      useSystemFonts: true
+    }).promise;
     var fullText = "";
     var pages: { page: number; text: string }[] = [];
     var numPages = doc.numPages;

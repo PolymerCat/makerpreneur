@@ -31,7 +31,7 @@ export function CourseProvider(props: { children: React.ReactNode }): React.JSX.
       var savedId = localStorage.getItem(ACTIVE_COURSE_KEY);
       if (savedId) {
         try {
-          var course = await db.getById("courses", savedId);
+          var course = await db.getById("subjects", savedId);
           if (course) {
             setActiveCourseState(course);
           }

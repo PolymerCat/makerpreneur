@@ -1,7 +1,12 @@
 export type Course = {
   id: string;
   name: string;
+  subjectCode?: string;
+  description?: string;
+  createdBy?: string;
 };
+
+export type Subject = Course;
 
 export type Material = {
   id: string;

@@ -29,8 +29,8 @@ export default function StudyPage() {
       <AppShell>
         <PageHero
           eyebrow="Study"
-          title="Choose a course"
-          description="Select or create a course to get started with study tools."
+          title="Select a Subject"
+          description="Choose an existing subject or create a new one to access study tools."
           icon="ti-school"
         />
         <CoursePicker />

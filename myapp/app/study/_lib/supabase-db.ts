@@ -10,6 +10,7 @@ function getClient() {
 
 /* Column name mapping: camelCase (JS) -> snake_case (SQL) */
 var COLUMN_MAP: Record<string, Record<string, string>> = {
+  subjects:     { subjectCode: "subject_code", createdBy: "created_by", createdAt: "created_at" },
   materials:    { courseId: "course_id", fileUrl: "file_url", fileType: "file_type", createdAt: "created_at" },
   chunks:       { materialId: "material_id", chunkIndex: "chunk_index" },
   decks:        { materialId: "material_id" },

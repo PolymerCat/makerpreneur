@@ -393,7 +393,7 @@ export async function aiGeneratePdfExam(
   var pdfBuffer = await generatePdfFromExamJson(jsonObj);
   
   var examId = crypto.randomUUID();
-  var storagePath = "generated_exams/" + examId + ".pdf";
+  var storagePath = courseId + "/generated_exams/" + examId + ".pdf";
   var bucket = "materials";
   
   var { createServerSupabaseClient } = await import("@/lib/supabase/server");
@@ -405,7 +405,7 @@ export async function aiGeneratePdfExam(
       upsert: true
     });
   if (uploadError) {
-    throw new Error("Storage Upload Error (" + uploadError.message + "). If RLS error persists, run app/study/_sql/0008_storage_rls.sql in Supabase SQL Editor.");
+    throw new Error("Storage Upload Error (" + uploadError.message + ").");
   }
   var fileUrl = dbMod.db.getPublicUrl(bucket, storagePath);
   

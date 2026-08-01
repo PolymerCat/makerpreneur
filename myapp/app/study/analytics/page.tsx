@@ -271,36 +271,7 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* Mentor Risk Flag Banner */}
-      <div className={"mentor-banner " + (analyticsData.riskFlag.isHighRisk ? "risk-high" : "risk-low")}>
-        <div className="mentor-banner-icon">
-          <Icon name={analyticsData.riskFlag.isHighRisk ? "ti-alert-triangle" : "ti-bulb"} />
-        </div>
-        <div className="mentor-banner-main">
-          <div className="mentor-banner-label">Mentor Risk Flag</div>
-          <div className="mentor-banner-message">
-            &ldquo;<strong>{analyticsData.riskFlag.message}</strong>&rdquo;
-          </div>
-        </div>
-        <div className="mentor-banner-stats">
-          <div className="mentor-banner-stat">
-            <span className="mentor-banner-stat-label">Spaced-Repetition</span>
-            <span className="mentor-banner-stat-value">
-              <span className="kpi-bar">
-                <span className={"kpi-bar-fill " + (analyticsData.factors.spacedRepetitionHealth < 50 ? "danger" : analyticsData.factors.spacedRepetitionHealth < 70 ? "warning" : "success")} style={{ width: analyticsData.factors.spacedRepetitionHealth + "%" }} />
-              </span>
-              {analyticsData.factors.spacedRepetitionHealth}%
-            </span>
-          </div>
-          <div className="mentor-banner-stat">
-            <span className="mentor-banner-stat-label">AI Chat</span>
-            <span className="mentor-banner-stat-value">
-              <Icon name={analyticsData.factors.chatActiveToday ? "ti-message-circle-check" : "ti-message-circle"} />
-              {analyticsData.factors.chatRecencyLabel}
-            </span>
-          </div>
-        </div>
-      </div>
+
 
       {/* Section 2: PYQ Topic Mastery */}
       <Card style={{ marginBottom: "24px" }}>
