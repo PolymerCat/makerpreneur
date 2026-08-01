@@ -18,10 +18,6 @@ function storage(): Profile[] {
   return raw ? JSON.parse(raw) : [];
 }
 
-export function getProfiles(): Profile[] {
-  return storage();
-}
-
 export function getProfile(userId: string): Profile | undefined {
   return storage().find(p => p.id === userId);
 }

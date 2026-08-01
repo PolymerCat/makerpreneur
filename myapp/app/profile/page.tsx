@@ -18,11 +18,19 @@ export default function ProfilePage() {
   const [supaRows, setSupaRows] = useState(0);
   const [saved, setSaved] = useState(false);
 
-  useEffect(() => {
-    supabase.from("profiles").select("id").then(({ data }) => {
-      setSupaRows(data?.length ?? 0);
+  useEffect(function() {
+    if (!user) return;
+    const p = getProfile(user.id);
+    setProfile(p);
+    if (p) {
+      setFullName(p.full_name);
+      setMatricNumber(p.matric_number ?? "");
+      setPreferredLanguage(p.preferred_language ?? "en");
+    }
+    supabase.from("profiles").select("id").then(function(result) {
+      setSupaRows(result.data?.length ?? 0);
     });
-  }, [supabase]);
+  }, [user, supabase]);
 
   function handleSave() {
     if (!user) return;
@@ -38,7 +46,7 @@ export default function ProfilePage() {
     );
     setProfile(updated);
     setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setTimeout(function() { setSaved(false); }, 2000);
   }
 
   return (
@@ -49,7 +57,6 @@ export default function ProfilePage() {
         description="Edit your profile. Changes are synced to the Supabase profiles table."
         icon="ti-user"
       />
-
       <section className="two-column">
         <Card>
           <div className="form-stack">

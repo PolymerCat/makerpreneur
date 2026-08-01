@@ -42,12 +42,6 @@ export const people: Person[] = [
   { id: "person-3", name: "Mei Ling", detail: "Science - Year 1", initials: "ML", actionLabel: "Connect" },
 ];
 
-export const resources: Resource[] = [
-  { id: "resource-1", name: "Final exam roadmap", meta: "PDF - 600 KB", icon: "ti-file-text" },
-  { id: "resource-2", name: "Formula sheet - Physics", meta: "PDF - 420 KB", icon: "ti-map" },
-  { id: "resource-3", name: "Radiotherapy recap", meta: "Video - 18 min", icon: "ti-video" },
-];
-
 export const campusServices: FeedItem[] = [
   { id: "campus-1", title: "Shuttle Bus", body: "Route B arrives in 6 minutes.", tag: "Live", icon: "ti-bus" },
   { id: "campus-2", title: "Library", body: "Central campus library is open until 10 PM.", tag: "Open", icon: "ti-books" },
