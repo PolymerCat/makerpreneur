@@ -2,24 +2,20 @@ import { ButtonLink } from "@/components/ui/ButtonLink";
 import { Icon } from "@/components/ui/Icon";
 
 type PageHeroProps = {
-  eyebrow: string;
+  eyebrow?: string;
   title: string;
   description: string;
-  icon: string;
+  icon?: string;
   primaryAction?: {
     href: string;
     label: string;
   };
 };
 
-export function PageHero({ eyebrow, title, description, icon, primaryAction }: PageHeroProps) {
+export function PageHero({ title, description, primaryAction }: PageHeroProps) {
   return (
     <header className="page-hero">
-      <div className="hero-icon">
-        <Icon name={icon} />
-      </div>
       <div>
-        <span>{eyebrow}</span>
         <h1>{title}</h1>
         <p>{description}</p>
       </div>

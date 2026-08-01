@@ -16,10 +16,8 @@ export default function EventsPage() {
   return (
     <AppShell>
       <PageHero
-        eyebrow="MyCSD & Events"
         title="Points and opportunities"
         description="Separate event pages make registration, event details, and reward history easier to build later."
-        icon="ti-confetti"
       />
 
       <section className="metric-grid three">

@@ -446,9 +446,6 @@ export default function ChatPage() {
             <div className="chat-scroll">
               {messages.length === 0 ? (
                 <div className="chat-empty">
-                  <div className="chat-empty-icon">
-                    <Icon name="ti-brain" />
-                  </div>
                   {conversations.length > 0 ? (
                     <button
                       type="button"

@@ -30,7 +30,7 @@ export function AppShell({ children }: AppShellProps) {
         </button>
 
         <div className="brand-block">
-          <span className="brand-mark">SH</span>
+          <img src="/logo-crest.webp" alt="USM Crest Logo" className="brand-mark" style={{ objectFit: "contain", padding: "2px", background: "#fff" }} />
           <div>
             <strong>StudentHub USM</strong>
             <span>Campus workspace</span>
@@ -42,7 +42,7 @@ export function AppShell({ children }: AppShellProps) {
 
       <aside className={`drawer ${navOpen ? "open" : ""}`} aria-hidden={!navOpen}>
         <div className="drawer-head">
-          <span className="brand-mark">SH</span>
+          <img src="/logo-crest.webp" alt="USM Crest Logo" className="brand-mark" style={{ objectFit: "contain", padding: "2px", background: "#fff" }} />
           <strong>Navigation</strong>
           <button className="drawer-close" type="button" onClick={closeNav} aria-label="Close navigation">
             <Icon name="ti-x" />

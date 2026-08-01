@@ -51,7 +51,7 @@ export function CoursePicker(): React.JSX.Element {
   return (
     <div className="course-picker-container">
       <div className="course-picker-header">
-        <h1>AI Study Hub</h1>
+        <h1>Study Hub</h1>
         <p>Select a course or create a new one to get started</p>
       </div>
 

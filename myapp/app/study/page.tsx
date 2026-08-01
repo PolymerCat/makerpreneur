@@ -30,7 +30,7 @@ export default function StudyPage() {
         <PageHero
           eyebrow="Study"
           title="Choose a course"
-          description="Select or create a course to get started with AI-powered study tools."
+          description="Select or create a course to get started with study tools."
           icon="ti-school"
         />
         <CoursePicker />
@@ -38,8 +38,8 @@ export default function StudyPage() {
     );
   }
 
-  var titleText = "AI Study Hub";
-  var descText = "RAG-powered study tools: chat with materials, flashcards, quizzes, and more";
+  var titleText = "Study Hub";
+  var descText = "Study tools: chat with materials, flashcards, quizzes, and more";
 
   return (
     <AppShell>
