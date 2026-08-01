@@ -10,6 +10,7 @@ import type { Quiz, Question } from "../../_lib/types";
 import QuizRunner from "../../_components/QuizRunner";
 import { aiGradeEssay, aiRecordQuizResult } from "../../actions";
 import { useCourse } from "../../_lib/CourseProvider";
+import { CourseBar } from "../../_components/CourseBar";
 
 export default function QuizTakePage(props: { params: Promise<{ id: string }> }) {
   var params = React.use(props.params);
@@ -129,6 +130,8 @@ export default function QuizTakePage(props: { params: Promise<{ id: string }> })
         description={questions.length + " questions"}
         icon="ti-quiz"
       />
+
+      <CourseBar />
 
       <div className="back-link">
         <Link href="/study/quizzes" className="btn btn-sm">

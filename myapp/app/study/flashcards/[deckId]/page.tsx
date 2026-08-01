@@ -8,6 +8,7 @@ import Link from "next/link";
 import { db } from "../../_lib/db";
 import type { Deck, Card as CardType } from "../../_lib/types";
 import FlashcardReview from "../../_components/FlashcardReview";
+import { CourseBar } from "../../_components/CourseBar";
 
 export default function DeckReviewPage(props: { params: Promise<{ deckId: string }> }) {
   var params = React.use(props.params);
@@ -78,6 +79,8 @@ export default function DeckReviewPage(props: { params: Promise<{ deckId: string
         description={cards.length + " cards due for review"}
         icon="ti-cards"
       />
+
+      <CourseBar />
 
       <div className="review-controls">
         <Link href="/study/flashcards" className="btn btn-sm">

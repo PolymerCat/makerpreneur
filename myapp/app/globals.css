@@ -172,11 +172,10 @@ input[type="range"] {
 .content-shell {
   display: flex;
   flex-direction: column;
-  /* width: min(100%, 1320px); faiq punya*/ 
-  padding: 32px;
-  gap: 28px;
+  padding: 24px 32px;
+  gap: 20px;
   justify-self: center;
-  width: min(1180px, 100%);
+  width: min(1560px, calc(100% - 32px));
   margin: 0 auto;
 }
 
@@ -923,11 +922,11 @@ input[type="range"] {
 
 .command-page {
   display: flex;
-  max-width: 1200px;
+  max-width: 1560px;
   margin: 0 auto;
   flex-direction: column;
-  gap: 24px;
-  padding: 32px;
+  gap: 20px;
+  padding: 24px 32px;
 }
 
 @media (max-width: 620px) {
@@ -1700,7 +1699,7 @@ input[type="range"] {
   margin-top: -44px;
 }
 .chat-center {
-  width: min(920px, 100%);
+  width: min(1180px, 100%);
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -1967,7 +1966,7 @@ input[type="range"] {
   pointer-events: none;
 }
 .chat-compose > * {
-  width: min(840px, calc(100% - 32px));
+  width: min(1180px, calc(100% - 32px));
   pointer-events: auto;
 }
 .chat-input-wrap {
@@ -2997,6 +2996,28 @@ input[type="range"] {
   align-items: center;
   gap: 12px;
   margin-bottom: 16px;
+}
+.study-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: #ffffff;
+  border: 2px solid var(--line);
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  box-shadow: 2px 2px 0px var(--line);
+  transition: all 0.2s ease;
+  text-decoration: none;
+  cursor: pointer;
+}
+.study-back-btn:hover {
+  background: var(--brand-soft);
+  color: var(--brand-deep);
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0px var(--line);
 }
 .course-badge {
   display: inline-flex;

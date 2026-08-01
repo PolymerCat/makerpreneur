@@ -6,6 +6,7 @@ import { PageHero } from "@/components/layout/PageHero";
 import { Card } from "@/components/ui/Card";
 import { db } from "../_lib/db";
 import type { ScheduleBlock } from "../_lib/types";
+import { CourseBar } from "../_components/CourseBar";
 
 var DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 var KIND_ICONS: Record<string, string> = {
@@ -106,6 +107,8 @@ export default function PlannerPage() {
         description="Weekly schedule planner"
         icon="ti-calendar"
       />
+
+      <CourseBar />
 
       <Card>
         <div className="planner-header">

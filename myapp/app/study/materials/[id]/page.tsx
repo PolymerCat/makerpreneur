@@ -8,6 +8,7 @@ import { db } from "../../_lib/db";
 import type { Material, Chunk } from "../../_lib/types";
 import MaterialChat from "../../_components/MaterialChat";
 import { aiEmbedQuery, aiChat } from "../../actions";
+import { CourseBar } from "../../_components/CourseBar";
 
 async function retrieveChunks(
   question: string,
@@ -72,6 +73,8 @@ export default function MaterialDetailPage(props: { params: Promise<{ id: string
         description={"Status: " + material.status}
         icon="ti-file-text"
       />
+
+      <CourseBar />
 
       {material.fileUrl ? (
         <a
