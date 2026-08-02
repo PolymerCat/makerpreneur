@@ -979,21 +979,6 @@ input[type="range"] {
 
 /* ============ Planner / Calendar ============ */
 
-.command-page {
-  display: flex;
-  max-width: 1560px;
-  margin: 0 auto;
-  flex-direction: column;
-  gap: 20px;
-  padding: 24px 32px;
-}
-
-@media (max-width: 620px) {
-  .command-page {
-    padding: 16px;
-  }
-}
-
 .planner-toolbar {
   display: flex;
   align-items: center;
