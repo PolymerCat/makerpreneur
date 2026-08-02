@@ -20,6 +20,15 @@ export type LlmLogEntry = {
 };
 
 const MODEL_RATES: Record<string, { in: number; out: number }> = {
+  // OpenRouter free endpoints
+  "openrouter/free": { in: 0, out: 0 },
+  "google/gemma-4-31b-it:free": { in: 0, out: 0 },
+  "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": { in: 0, out: 0 },
+  "openai/gpt-oss-20b:free": { in: 0, out: 0 },
+  // Gemini via OpenRouter BYOK: 5% of OR list price, waived first 1M req/mo
+  "google/gemini-3.6-flash": { in: 0.01, out: 0.04 },
+  "google/gemini-3.5-flash": { in: 0.02, out: 0.08 },
+  // Direct Gemini (existing entries unchanged)
   "gemini-3.6-flash": { in: 0.15, out: 0.6 },   // USD per 1M tokens
   "gemini-3.5-flash": { in: 0.3, out: 1.2 },
   "gemini-3.5-flash-lite": { in: 0.075, out: 0.3 },

@@ -47,7 +47,7 @@ type ArtifactMatch =
   | { kind: "quiz"; id: string }
   | { kind: "pdf"; url: string };
 
-var ARTIFACT_RE = /\[([^\]]*)\]\(([^)\s]+)\)|\/study\/flashcards\/([0-9a-f-]{8,})|\/study\/quizzes\/([0-9a-f-]{8,})|https?:\/\/[^\s()]+\.pdf/gi;
+var ARTIFACT_RE = /<https?:\/\/[^>\s]+\/study\/flashcards\/([0-9a-f-]{8,})>|<https?:\/\/[^>\s]+\/study\/quizzes\/([0-9a-f-]{8,})>|\[([^\]]*)\]\(([^)\s]+)\)|\/study\/flashcards\/([0-9a-f-]{8,})|\/study\/quizzes\/([0-9a-f-]{8,})|https?:\/\/[^\s()]+\.pdf/gi;
 
 var WIDGET_STYLE: React.CSSProperties = {
   background: "rgba(255, 255, 255, 0.05)",
@@ -157,26 +157,146 @@ function ToolSpinner(): React.ReactNode {
   );
 }
 
-function ToolActivityStrip(props: { activity: ToolActivity[] }): React.ReactNode {
+function humanizeToolInfo(tool: string): { title: string; desc: string; icon: string } {
+  switch (tool) {
+    case "search_material":
+      return { title: "Searching Course Material", desc: "Searching uploaded lecture notes & slides", icon: "ti-search" };
+    case "search_memory":
+      return { title: "Checking Student Memory", desc: "Retrieving user preferences & past weaknesses", icon: "ti-brain" };
+    case "save_memory":
+      return { title: "Saving Study Memory", desc: "Storing new learning memory for future sessions", icon: "ti-bookmark" };
+    case "generate_flashcards":
+      return { title: "Generating Flashcard Deck", desc: "Extracting key terms & creating Q&A cards", icon: "ti-cards" };
+    case "generate_quiz":
+      return { title: "Crafting Practice Quiz", desc: "Generating multiple choice & practice questions", icon: "ti-quiz" };
+    case "get_exam_readiness":
+      return { title: "Calculating Exam Readiness", desc: "Analyzing attempt history & readiness score", icon: "ti-chart-bar" };
+    case "get_study_plan":
+      return { title: "Generating Study Plan", desc: "Creating day-by-day revision schedule", icon: "ti-calendar" };
+    case "search_past_papers":
+      return { title: "Scanning Past Papers", desc: "Matching exam questions & solution keys", icon: "ti-files" };
+    case "translate_text":
+      return { title: "Translating Material", desc: "Converting content to target language", icon: "ti-language" };
+    case "generate_exam_paper":
+      return { title: "Synthesizing Practice Exam PDF", desc: "Compiling printable practice exam document", icon: "ti-file-text" };
+    default:
+      return { title: humanizeTool(tool), desc: "Executing tool operation", icon: "ti-settings" };
+  }
+}
+
+function ToolActivityStrip(props: { activity: ToolActivity[]; isSearching?: boolean }): React.ReactNode {
+  if (!props.activity || props.activity.length === 0) {
+    return (
+      <React.Fragment>
+        <style>{`
+          @keyframes chatSpin { to { transform: rotate(360deg); } }
+          @keyframes pulseGlow { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+        `}</style>
+        <div style={{
+          background: "#1e293b",
+          border: "1px solid rgba(255, 255, 255, 0.12)",
+          borderRadius: "14px",
+          padding: "12px 16px",
+          margin: "8px 0 12px",
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
+          fontSize: "13px",
+          boxShadow: "0 6px 20px rgba(0, 0, 0, 0.2)"
+        }}>
+          <ToolSpinner />
+          <span style={{ fontWeight: 600, color: "#f8fafc", animation: "pulseGlow 2s infinite" }}>
+            {props.isSearching ? "Searching course materials..." : "Study Buddy is thinking..."}
+          </span>
+        </div>
+      </React.Fragment>
+    );
+  }
+
+  var runningTool = props.activity.find(function(t) { return t.status === "running"; });
+  var activeInfo = runningTool ? humanizeToolInfo(runningTool.tool) : null;
+
   return (
     <React.Fragment>
-      <style>{"@keyframes chatSpin { to { transform: rotate(360deg); } }"}</style>
-      <div className="chat-widget chat-widget-tools" style={WIDGET_STYLE}>
-      {props.activity.map(function(t, i) {
-        var isDone = t.status === "done";
-        return (
-          <span
-            key={t.tool + "-" + i}
-            className={"chat-widget-tool" + (isDone ? " done" : "")}
-            style={{ display: "inline-flex", alignItems: "center", gap: "6px", margin: "0 14px 6px 0", fontSize: "13px", opacity: isDone ? 0.85 : 1 }}
-          >
-            {isDone ? <Icon name="ti-check" /> : <ToolSpinner />}
-            <span className="chat-widget-tool-name">{humanizeTool(t.tool)}</span>
-            {isDone ? <span className="chat-widget-tool-time" style={{ color: "rgba(255, 255, 255, 0.6)" }}>{t.durationMs}ms</span> : null}
+      <style>{`
+        @keyframes chatSpin { to { transform: rotate(360deg); } }
+        @keyframes pulseGlow { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+        @keyframes stepFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+      `}</style>
+
+      <div className="chat-widget chat-widget-tools" style={{
+        background: "#1e293b",
+        border: "1px solid rgba(255, 255, 255, 0.14)",
+        borderRadius: "14px",
+        padding: "14px 16px",
+        margin: "10px 0 12px",
+        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.25)"
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px", paddingBottom: "8px", borderBottom: "1px solid rgba(255, 255, 255, 0.08)" }}>
+          <div style={{
+            width: "24px",
+            height: "24px",
+            borderRadius: "50%",
+            background: "#6366f1",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#ffffff",
+            fontSize: "12px"
+          }}>
+            <Icon name={activeInfo ? activeInfo.icon : "ti-sparkles"} />
+          </div>
+          <span style={{ fontWeight: 600, fontSize: "13px", color: "#f8fafc" }}>
+            {activeInfo ? activeInfo.title : "Study Buddy Working..."}
           </span>
-        );
-      })}
-    </div>
+          <span style={{ marginLeft: "auto", fontSize: "11px", color: "#94a3b8", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+            {runningTool ? <ToolSpinner /> : <Icon name="ti-check" />}
+            {runningTool ? "In Progress" : "Done"}
+          </span>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          {props.activity.map(function(t, i) {
+            var info = humanizeToolInfo(t.tool);
+            var isDone = t.status === "done";
+            return (
+              <div
+                key={t.tool + "-" + i}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "6px 10px",
+                  borderRadius: "8px",
+                  background: isDone ? "rgba(255, 255, 255, 0.03)" : "rgba(99, 102, 241, 0.14)",
+                  border: isDone ? "1px solid rgba(255, 255, 255, 0.05)" : "1px solid rgba(99, 102, 241, 0.35)",
+                  fontSize: "12px",
+                  animation: "stepFadeIn 0.25s ease-out"
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{
+                    color: isDone ? "#10b981" : "#6366f1",
+                    display: "flex",
+                    alignItems: "center"
+                  }}>
+                    {isDone ? <Icon name="ti-check" /> : <ToolSpinner />}
+                  </span>
+                  <span style={{ fontWeight: isDone ? 500 : 600, color: isDone ? "#cbd5e1" : "#ffffff" }}>
+                    {info.title}
+                  </span>
+                </div>
+
+                {!isDone ? (
+                  <span style={{ color: "#a5b4fc", fontSize: "11px", fontStyle: "italic", animation: "pulseGlow 1.5s infinite" }}>
+                    {info.desc}
+                  </span>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </React.Fragment>
   );
 }
@@ -1094,35 +1214,36 @@ function ExamPaperCard(props: { url: string }): React.ReactNode {
 }
 
 function classifyArtifact(m: RegExpExecArray): ArtifactMatch | null {
-  if (m[2] !== undefined) {
-    var url = m[2];
+  if (m[1] !== undefined) return { kind: "deck", id: m[1] };
+  if (m[2] !== undefined) return { kind: "quiz", id: m[2] };
+  if (m[4] !== undefined) {
+    var url = m[4];
     if (url.indexOf("/study/flashcards/") !== -1) {
       var did = url.match(/\/study\/flashcards\/([0-9a-f-]{8,})/);
-      if (did) {
-        return { kind: "deck", id: did[1] };
-      }
+      if (did) return { kind: "deck", id: did[1] };
     }
     if (url.indexOf("/study/quizzes/") !== -1) {
       var qid = url.match(/\/study\/quizzes\/([0-9a-f-]{8,})/);
-      if (qid) {
-        return { kind: "quiz", id: qid[1] };
-      }
+      if (qid) return { kind: "quiz", id: qid[1] };
     }
-    if (/\.pdf$/i.test(url)) {
-      return { kind: "pdf", url: url };
-    }
+    if (/\.pdf$/i.test(url)) return { kind: "pdf", url: url };
     return null;
   }
-  if (m[3] !== undefined) {
-    return { kind: "deck", id: m[3] };
-  }
-  if (m[4] !== undefined) {
-    return { kind: "quiz", id: m[4] };
-  }
-  if (m[5] !== undefined) {
-    return { kind: "pdf", url: m[5] };
-  }
+  if (m[5] !== undefined) return { kind: "deck", id: m[5] };
+  if (m[6] !== undefined) return { kind: "quiz", id: m[6] };
+  if (m[7] !== undefined) return { kind: "pdf", url: m[7] };
   return null;
+}
+
+function cleanTextBeforeArtifact(text: string): string {
+  if (!text) return "";
+  var cleaned = text
+    .replace(/<https?:?\/?\/?[^>\s]*$/i, "")
+    .replace(/\[[^\]]*\]\(\s*https?:?\/?\/?[^)\s]*$/i, "")
+    .replace(/\(\s*https?:?\/?\/?[^)\s]*$/i, "")
+    .replace(/<\s*$/i, "")
+    .trim();
+  return cleaned;
 }
 
 function renderAssistantContent(content: string): React.ReactNode[] {
@@ -1135,7 +1256,14 @@ function renderAssistantContent(content: string): React.ReactNode[] {
   var key = 0;
   while ((m = ARTIFACT_RE.exec(content)) !== null) {
     if (m.index > last) {
-      parts.push(<div key={key++} dangerouslySetInnerHTML={{ __html: renderMarkdown(content.slice(last, m.index)) }} />);
+      var textSlice = content.slice(last, m.index);
+      var artifactCheck = classifyArtifact(m);
+      if (artifactCheck) {
+        textSlice = cleanTextBeforeArtifact(textSlice);
+      }
+      if (textSlice) {
+        parts.push(<div key={key++} dangerouslySetInnerHTML={{ __html: renderMarkdown(textSlice) }} />);
+      }
     }
     var artifact = classifyArtifact(m);
     if (artifact) {
@@ -1152,7 +1280,10 @@ function renderAssistantContent(content: string): React.ReactNode[] {
     last = m.index + m[0].length;
   }
   if (last < content.length) {
-    parts.push(<div key={key++} dangerouslySetInnerHTML={{ __html: renderMarkdown(content.slice(last)) }} />);
+    var tailSlice = content.slice(last);
+    if (tailSlice && tailSlice.trim() !== ">") {
+      parts.push(<div key={key++} dangerouslySetInnerHTML={{ __html: renderMarkdown(tailSlice) }} />);
+    }
   }
   return parts;
 }
@@ -1822,8 +1953,8 @@ export default function ChatPage() {
                         <div className="chat-text chat-text-user">{renderUserContent(msg.content)}</div>
                       ) : (
                         <div className="chat-text chat-text-ai">
-                          {index === messages.length - 1 && loading && toolActivity.length > 0 ? (
-                            <ToolActivityStrip activity={toolActivity} />
+                          {index === messages.length - 1 && loading && (toolActivity.length > 0 || msg.content === "") ? (
+                            <ToolActivityStrip activity={toolActivity} isSearching={isSearching} />
                           ) : null}
                           {renderAssistantContent(msg.content)}
                         </div>
@@ -1832,12 +1963,12 @@ export default function ChatPage() {
                   </div>
                 );
               })}
-              {loading && (messages.length === 0 || messages[messages.length - 1].role === "user" || messages[messages.length - 1].content === "") ? (
+              {loading && (messages.length === 0 || messages[messages.length - 1].role === "user") ? (
                 <div className="chat-row chat-row-assistant">
                   <div className="chat-avatar"><Icon name="ti-robot" /></div>
                   <div className="chat-content">
                     <div className="chat-name">Study Buddy</div>
-                    <em className="chat-typing-text">{isSearching ? "Searching course materials…" : "Typing…"}</em>
+                    <ToolActivityStrip activity={toolActivity} isSearching={isSearching} />
                   </div>
                 </div>
               ) : null}

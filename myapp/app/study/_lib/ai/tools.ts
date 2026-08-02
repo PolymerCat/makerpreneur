@@ -285,7 +285,7 @@ registerTool({
 
       return {
         ok: true,
-        result: `Flashcard deck created successfully! Deck URL: ${deckUrl} (Total Cards: ${cardsData.length}).\n\n[INSTRUCTION FOR ASSISTANT]: The UI automatically renders the interactive Flashcard UI component for the student. Do NOT list or write out the individual flashcard questions or answers in your chat message text. Simply provide a short 1-sentence confirmation and include the deck link (${deckUrl}).`
+        result: `Flashcard deck created successfully! Deck URL: ${deckUrl} (Total Cards: ${cardsData.length}).\n\n[INSTRUCTION FOR ASSISTANT]: The UI renders the interactive Flashcard UI component from the link. Do NOT list or write out the individual flashcard questions or answers in your chat message text. Simply provide a short 1-sentence confirmation that includes the deck link (${deckUrl}).`
       };
     } catch (err: any) {
       console.error(`[TOOL-ERROR] [generate_flashcards] Error:`, err);
@@ -382,7 +382,7 @@ registerTool({
 
       return {
         ok: true,
-        result: `Quiz created successfully! Quiz URL: ${quizUrl} (Total Questions: ${questionsData.length}).\n\n[INSTRUCTION FOR ASSISTANT]: The UI automatically renders the interactive Quiz UI component for the student. Do NOT list or write out the individual quiz questions or choices in your chat message text. Simply provide a short 1-sentence confirmation and include the quiz link (${quizUrl}).`
+        result: `Quiz created successfully! Quiz URL: ${quizUrl} (Total Questions: ${questionsData.length}).\n\n[INSTRUCTION FOR ASSISTANT]: The UI renders the interactive Quiz UI component from the link. Do NOT list or write out the individual quiz questions or choices in your chat message text. Simply provide a short 1-sentence confirmation that includes the quiz link (${quizUrl}).`
       };
     } catch (err: any) {
       console.error(`[TOOL-ERROR] [generate_quiz] Error:`, err);

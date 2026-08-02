@@ -38,7 +38,7 @@ AVAILABLE TOOLS & RULES:
 1. You have 10 powerful tools available (search_material, search_memory, save_memory, generate_flashcards, generate_quiz, get_exam_readiness, get_study_plan, search_past_papers, translate_text, generate_exam_paper).
 2. Call tools ONLY when necessary to answer the question or perform requested actions.
 3. If the user asks for flashcards, quizzes, past papers, or PDF exam papers, execute the corresponding tool immediately.
-4. IMPORTANT: When a tool (like generate_flashcards or generate_quiz) returns ok: true, the UI automatically renders an interactive card widget for the student. Do NOT list or write out the individual flashcard questions or quiz options in your chat message text. Simply provide a short 1-sentence friendly confirmation with the link.
+4. IMPORTANT: When a tool (like generate_flashcards or generate_quiz) returns ok: true, the UI renders an interactive card widget from the link it provides. Do NOT list or write out the individual flashcard questions or quiz options in your chat message text. Simply provide a short 1-sentence friendly confirmation that includes the link (e.g. "Here's your quiz ready to go! /study/quizzes/<id>").
 5. NEVER state or claim that a database or technical snag occurred when a tool returned ok: true.
 6. When citing source materials from search_material, use bracketed numbers like [1], [2] to reference the relevant chunk text.
 7. Keep your tone encouraging and academic.
@@ -63,6 +63,24 @@ AVAILABLE TOOLS & RULES:
   }
 
   return prompt;
+}
+
+// Matches artifact URLs the UI can render: bare /study/... paths or PDF links.
+var ARTIFACT_URL_RE = /((?:https?:\/\/[^\s()]+\.pdf)|(?:\/study\/(?:quizzes|flashcards)\/[0-9a-f-]{8,}))/i;
+
+function extractArtifactUrl(toolResults: any[]): string | null {
+  for (var i = 0; i < toolResults.length; i++) {
+    var item = toolResults[i];
+    if (!item.toolRes || item.toolRes.ok !== true) {
+      continue;
+    }
+    var text = typeof item.toolRes.result === "string" ? item.toolRes.result : "";
+    var m = text.match(ARTIFACT_URL_RE);
+    if (m) {
+      return m[1];
+    }
+  }
+  return null;
 }
 
 export async function* runAgent(
@@ -206,6 +224,20 @@ export async function* runAgent(
         type: "text",
         content: "The AI generation service is temporarily unavailable (likely a quota or outage issue), so I've stopped further tool calls. Please try again in a few minutes."
       };
+      yield { type: "done", toolCount };
+      return;
+    }
+
+    // Artifact tools (quiz, flashcards, exam paper) return a link in their result.
+    // Stream a canned confirmation with it instead of burning another LLM probe turn.
+    const artifactUrl = extractArtifactUrl(toolResults);
+    if (artifactUrl) {
+      const kind = artifactUrl.indexOf(".pdf") !== -1 ? "paper" : artifactUrl.indexOf("flashcards") !== -1 ? "flashcard" : "quiz";
+      const labels = language === "ms"
+        ? { quiz: "Kuiz anda sedia untuk digunakan!", flashcard: "Kad imbasan anda sedia!", paper: "Kertas peperiksaan anda sedia!" }
+        : { quiz: "Here's your quiz ready to go!", flashcard: "Here are your flashcards ready to practice!", paper: "Here's your exam paper ready to download!" };
+      console.log(`[AGENT-ARTIFACT] Canned confirmation for ${kind}: ${artifactUrl}`);
+      yield { type: "text", content: `${labels[kind]} ${artifactUrl}` };
       yield { type: "done", toolCount };
       return;
     }

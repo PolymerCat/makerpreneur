@@ -31,4 +31,4 @@ Run from `myapp/`:
 
 ## Env
 
-Keys (names only, in `.env`, gitignored; `.env.example` has no values): `GEMINI_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+Keys (names only, in `.env`, gitignored): `OPENROUTER_API_KEY` (primary LLM gateway, free models), `GEMINI_API_KEY` (fallback + embeddings), `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`.

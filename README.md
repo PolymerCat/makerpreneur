@@ -57,6 +57,7 @@ Flow: the browser POSTs a question to the SSE route, the agent loop asks Gemini 
 | Retrieval fusion | Reciprocal rank fusion over plain top-k | RRF is parameter-light and robust to score scale differences across searches |
 | Query expansion | Gemini generates 3 paraphrases per question | Cheap diversity boost for recall on short exam-style queries |
 | Logging | JSONL (dev) + Supabase table (prod) | Zero-infrastructure local debugging, persistent analytics in prod |
+| LLM Gateway | OpenRouter (free model chain) with direct Gemini fallback | Maximize usage limits at zero cost while maintaining direct Gemini reliability |
 | Database access | Supabase anon key + RLS, never the service role key | Server reads and writes stay scoped to the signed-in user |
 | Embeddings storage | pgvector in Postgres | No separate vector database to operate; same engine as the app data |
 

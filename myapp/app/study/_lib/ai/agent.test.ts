@@ -40,6 +40,39 @@ describe("Agent Loop & Parallel Tool Execution Stress Tests", () => {
     expect(events[1]).toEqual({ type: "done", toolCount: 0 });
   });
 
+  it("should stream a canned confirmation with the artifact link after a successful generate_quiz, without a second LLM probe", async () => {
+    const mockGenerateContent = vi.mocked(llm.generateContent);
+    mockGenerateContent.mockResolvedValueOnce({
+      text: "",
+      functionCalls: [{ name: "generate_quiz", args: { questionCount: 5, topic: "Networking" } }],
+      usage: { model: "gemini-3.6-flash", inputTokens: 20, outputTokens: 30 }
+    });
+
+    const executeSpy = vi.spyOn(toolsModule, "executeTool").mockResolvedValue({
+      ok: true,
+      result: "Quiz created successfully! Quiz URL: /study/quizzes/123e4567-e89b-12d3-a456-426614174000 (Total Questions: 5)."
+    });
+
+    const generator = runAgent({
+      userId: "user-1",
+      question: "Generate a 5-question quiz",
+      subjectId: "subj-1",
+      language: "en"
+    });
+
+    const events: AgentEvent[] = [];
+    for await (const event of generator) {
+      events.push(event);
+    }
+
+    expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+    expect(executeSpy).toHaveBeenCalledTimes(1);
+    expect(events[0]).toEqual({ type: "tool_start", tool: "generate_quiz" });
+    expect(events[2].type).toBe("text");
+    expect((events[2] as any).content).toContain("/study/quizzes/123e4567-e89b-12d3-a456-426614174000");
+    expect(events[3]).toEqual({ type: "done", toolCount: 1 });
+  });
+
   it("should enforce max 4 turns iteration limit when model endlessly calls tools", async () => {
     const mockGenerateContent = vi.mocked(llm.generateContent);
     mockGenerateContent.mockResolvedValue({
