@@ -44,3 +44,6 @@ next-env.d.ts
 # logs
 logs/
 
+# local database schema reference (contains sensitive column notes)
+DATABASE_SCHEMA.MD
+

@@ -15,6 +15,7 @@ Next.js 16.2.10 App Router study platform: RAG chat (Gemini), flashcards, quizze
 
 ## Schema gotchas
 
+- `DATABASE_SCHEMA.MD` (local, gitignored) is the authoritative table/column reference; consult it before writing queries.
 - `0009_subjects_ownership.sql` renamed `courses` → `subjects` (with `created_by` owner + owner-scoped RLS on every table). **Code uses `subjects`; FK columns are still named `course_id`** everywhere — don't "fix" them.
 - Migrations live in `app/study/_sql/0001-0010*.sql` and are applied **manually** in the Supabase SQL editor — there is no migration runner.
 - The server Supabase client (`lib/supabase/server.ts`) uses the **anon key + session cookies**, so RLS is enforced on all server-side reads/writes. Always go through `sdb` (`app/study/_lib/supabase-db.ts`); never use the service role key.
