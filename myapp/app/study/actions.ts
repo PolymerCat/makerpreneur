@@ -14,7 +14,7 @@ export async function aiSummarize(
   language: string
 ): Promise<string> {
   var prompt = prompts.summarizePrompt(fullText, mode, language);
-  return await llm.generate(prompt, 0.2, 2000, "summarize");
+  return (await llm.generate(prompt, 0.2, 2000, "summarize")).value;
 }
 
 export async function aiMakeFlashcards(
@@ -23,12 +23,35 @@ export async function aiMakeFlashcards(
   cardCount: number,
   memoryText: string = ""
 ): Promise<{ front: string; back: string }[]> {
+  var startTime = Date.now();
   var count = cardCount || DEFAULT_CARD_COUNT;
+  console.log("[ACTION] [aiMakeFlashcards] Generating " + count + " cards for topic/text: \"" + fullText.slice(0, 60) + "...\"");
+
   var prompt = prompts.flashcardsPrompt(fullText, language, count);
   if (memoryText) {
     prompt = "MEMORY (what we know about this student):\n---\n" + memoryText + "\n---\n\n" + prompt;
   }
-  return await llm.generateJson(prompt, 0.4, 4000, "flashcards");
+
+  var res = (await llm.generateJson(prompt, 0.4, 4000, "flashcards")).value;
+  var cards: any[] = [];
+  if (Array.isArray(res)) {
+    cards = res;
+  } else if (res && Array.isArray(res.flashcards)) {
+    cards = res.flashcards;
+  } else if (res && Array.isArray(res.cards)) {
+    cards = res.cards;
+  } else if (res && typeof res === "object") {
+    var keys = Object.keys(res);
+    for (var i = 0; i < keys.length; i++) {
+      if (Array.isArray(res[keys[i]])) {
+        cards = res[keys[i]];
+        break;
+      }
+    }
+  }
+
+  console.log("[ACTION] [aiMakeFlashcards] Successfully generated " + cards.length + " card(s) in " + (Date.now() - startTime) + "ms");
+  return cards;
 }
 
 export async function aiMakeQuiz(
@@ -42,7 +65,7 @@ export async function aiMakeQuiz(
   if (memoryText) {
     prompt = "MEMORY (what we know about this student):\n---\n" + memoryText + "\n---\n\n" + prompt;
   }
-  var result = await llm.generateJson(prompt, 0.4, 16000, "quiz");
+  var result = (await llm.generateJson(prompt, 0.4, 16000, "quiz")).value;
   return result.questions;
 }
 
@@ -52,7 +75,7 @@ export async function aiGradeEssay(
   studentAnswer: string
 ): Promise<{ score: number; feedback: string }> {
   var prompt = prompts.essayGradePrompt(question, rubric, studentAnswer);
-  return await llm.generateJson(prompt, 0.1, 1000, "essay_grade");
+  return (await llm.generateJson(prompt, 0.1, 1000, "essay_grade")).value;
 }
 
 export async function aiPredictQuestions(
@@ -61,7 +84,7 @@ export async function aiPredictQuestions(
   language: string
 ): Promise<{ question: string; modelAnswer: string; marks: number; probability: string; topic: string }[]> {
   var prompt = prompts.predictorPrompt(styleData, courseName, language);
-  return await llm.generateJson(prompt, 0.5, 4000, "predict");
+  return (await llm.generateJson(prompt, 0.5, 4000, "predict")).value;
 }
 
 export async function aiNameTopics(
@@ -72,7 +95,7 @@ export async function aiNameTopics(
     return [];
   }
   var prompt = prompts.topicNamePrompt(questions, courseName);
-  var res = await llm.generateJson(prompt, 0.2, 2000, "topic_names");
+  var res = (await llm.generateJson(prompt, 0.2, 2000, "topic_names")).value;
   var names = Array.isArray(res) ? res : (res && res.names) || [];
   return names.map(function(n: any) { return String(n); });
 }
@@ -86,7 +109,7 @@ export async function aiExtractPastQuestions(
     return {};
   }
   var prompt = prompts.pastQuestionsPrompt(topicNames, courseName, papersText);
-  var res = await llm.generateJson(prompt, 0.1, 6000, "past_questions");
+  var res = (await llm.generateJson(prompt, 0.1, 6000, "past_questions")).value;
   var topics = Array.isArray(res) ? res : (res && res.topics) || [];
   var result: Record<string, string[]> = {};
   for (var i = 0; i < topics.length; i++) {
@@ -105,7 +128,7 @@ export async function aiMakeStudyPath(
   language: string
 ): Promise<{ days: { dayNumber: number; date: string; topic: string; tasks: string[] }[] }> {
   var prompt = prompts.studyPathPrompt(courseName, examDate, goals, language);
-  return await llm.generateJson(prompt, 0.4, 4000, "study_path");
+  return (await llm.generateJson(prompt, 0.4, 4000, "study_path")).value;
 }
 
 export async function aiChat(
@@ -115,7 +138,7 @@ export async function aiChat(
   language: string
 ): Promise<string> {
   var prompt = prompts.chatPrompt(chunks, question, chatHistory, language);
-  return await llm.generate(prompt, 0.3, 2000, "chat");
+  return (await llm.generate(prompt, 0.3, 2000, "chat")).value;
 }
 
 export async function aiEmbedQuery(question: string): Promise<number[]> {
@@ -159,7 +182,7 @@ export async function aiTranslate(
   targetLanguage: string
 ): Promise<string> {
   var prompt = prompts.translatePrompt(fullText, targetLanguage);
-  var result = await llm.generateJson(prompt, 0.1, 4000, "translate");
+  var result = (await llm.generateJson(prompt, 0.1, 4000, "translate")).value;
   return result.translatedText || "";
 }
 
@@ -384,7 +407,7 @@ export async function aiGeneratePdfExam(
   }
   
   var prompt = prompts.generateExamPaperJsonPrompt(syllabusText, pastPapersText, finalCourseCode, finalTitle, numQuestions);
-  var jsonStr = await llm.generate(prompt, 0.2, 8000, "generateExamJson");
+  var jsonStr = (await llm.generate(prompt, 0.2, 8000, "generateExamJson")).value;
   
   // Gemini might return markdown block. Clean it.
   var cleanJsonStr = jsonStr.replace(/^```json/i, "").replace(/```$/i, "").trim();

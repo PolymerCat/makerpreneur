@@ -9,7 +9,7 @@ import { renderMarkdown } from "../_lib/render-markdown";
 import { useCourse } from "../_lib/CourseProvider";
 import { CoursePicker } from "../_components/CoursePicker";
 import { CourseBar } from "../_components/CourseBar";
-import { aiExtractMemory } from "../actions";
+import { aiExtractMemory, aiGradeEssay } from "../actions";
 import type { Material } from "../_lib/types";
 
 var STREAM_URL = "/study/api/chat";
@@ -35,6 +35,85 @@ type Conversation = {
   updatedAt: string;
 };
 
+type SSEEvent =
+  | { type: "tool_start"; tool: string }
+  | { type: "tool_end"; tool: string; durationMs: number }
+  | { type: "text"; content: string }
+  | { type: "done"; toolCount: number };
+
+type ToolActivity = { tool: string; status: "running" | "done"; durationMs: number };
+type ArtifactMatch =
+  | { kind: "deck"; id: string }
+  | { kind: "quiz"; id: string }
+  | { kind: "pdf"; url: string };
+
+var ARTIFACT_RE = /\[([^\]]*)\]\(([^)\s]+)\)|\/study\/flashcards\/([0-9a-f-]{8,})|\/study\/quizzes\/([0-9a-f-]{8,})|https?:\/\/[^\s()]+\.pdf/gi;
+
+var WIDGET_STYLE: React.CSSProperties = {
+  background: "rgba(255, 255, 255, 0.05)",
+  border: "1px solid rgba(255, 255, 255, 0.1)",
+  borderRadius: "14px",
+  padding: "14px 16px",
+  margin: "10px 0 12px",
+  backdropFilter: "blur(10px)",
+  boxShadow: "0 6px 24px rgba(0, 0, 0, 0.25)"
+};
+
+var WIDGET_HEAD_STYLE: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "8px",
+  marginBottom: "10px"
+};
+
+var WIDGET_TITLE_STYLE: React.CSSProperties = { fontWeight: 600, fontSize: "15px" };
+
+var WIDGET_META_STYLE: React.CSSProperties = {
+  marginLeft: "auto",
+  fontSize: "12px",
+  opacity: 0.7
+};
+
+var WIDGET_CTA_STYLE: React.CSSProperties = {
+  display: "inline-block",
+  marginTop: "10px",
+  padding: "8px 14px",
+  borderRadius: "10px",
+  background: "#ffffff",
+  color: "#0f172a",
+  border: "1px solid #cbd5e1",
+  fontWeight: 600,
+  textDecoration: "none",
+  fontSize: "13px",
+  boxShadow: "0 2px 6px rgba(0, 0, 0, 0.08)"
+};
+
+var WIDGET_CARD_STYLE: React.CSSProperties = {
+  background: "rgba(0, 0, 0, 0.35)",
+  border: "1px solid rgba(255, 255, 255, 0.15)",
+  borderRadius: "10px",
+  padding: "10px 12px",
+  color: "inherit",
+  font: "inherit",
+  textAlign: "left",
+  cursor: "pointer",
+  width: "100%",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  display: "block"
+};
+
+var WIDGET_PILL_STYLE: React.CSSProperties = {
+  display: "inline-block",
+  background: "rgba(255, 255, 255, 0.08)",
+  border: "1px solid rgba(255, 255, 255, 0.15)",
+  borderRadius: "999px",
+  padding: "4px 10px",
+  margin: "0 6px 6px 0",
+  fontSize: "12px"
+};
+
 function formatDate(iso: string): string {
   var d = new Date(iso);
   var now = new Date();
@@ -48,6 +127,1034 @@ function formatDate(iso: string): string {
   }
   var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   return months[d.getMonth()] + " " + d.getDate();
+}
+
+function humanizeTool(tool: string): string {
+  var words = tool.split("_");
+  var parts: string[] = [];
+  for (var i = 0; i < words.length; i++) {
+    var w = words[i];
+    parts.push(w.charAt(0).toUpperCase() + w.slice(1));
+  }
+  return parts.join(" ");
+}
+
+function ToolSpinner(): React.ReactNode {
+  return (
+    <span
+      className="chat-widget-spinner"
+      aria-label="running"
+      style={{
+        display: "inline-block",
+        width: "10px",
+        height: "10px",
+        borderRadius: "50%",
+        border: "2px solid rgba(255, 255, 255, 0.25)",
+        borderTopColor: "#fff",
+        animation: "chatSpin 0.8s linear infinite"
+      }}
+    />
+  );
+}
+
+function ToolActivityStrip(props: { activity: ToolActivity[] }): React.ReactNode {
+  return (
+    <React.Fragment>
+      <style>{"@keyframes chatSpin { to { transform: rotate(360deg); } }"}</style>
+      <div className="chat-widget chat-widget-tools" style={WIDGET_STYLE}>
+      {props.activity.map(function(t, i) {
+        var isDone = t.status === "done";
+        return (
+          <span
+            key={t.tool + "-" + i}
+            className={"chat-widget-tool" + (isDone ? " done" : "")}
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", margin: "0 14px 6px 0", fontSize: "13px", opacity: isDone ? 0.85 : 1 }}
+          >
+            {isDone ? <Icon name="ti-check" /> : <ToolSpinner />}
+            <span className="chat-widget-tool-name">{humanizeTool(t.tool)}</span>
+            {isDone ? <span className="chat-widget-tool-time" style={{ color: "rgba(255, 255, 255, 0.6)" }}>{t.durationMs}ms</span> : null}
+          </span>
+        );
+      })}
+    </div>
+    </React.Fragment>
+  );
+}
+
+import FlashcardReview from "../_components/FlashcardReview";
+
+function FlashcardCard(props: { deckId: string }): React.ReactNode {
+  var deckId = props.deckId;
+  var [deck, setDeck] = React.useState<any | null>(null);
+  var [cards, setCards] = React.useState<any[]>([]);
+  var [viewIndex, setViewIndex] = React.useState(0);
+  var [isFlipped, setIsFlipped] = React.useState(false);
+  var [focusMode, setFocusMode] = React.useState(false);
+  var [failed, setFailed] = React.useState(false);
+
+  React.useEffect(function() {
+    var cancelled = false;
+    (async function() {
+      try {
+        var d = await db.getById("decks", deckId);
+        var c = await db.listAll("cards", { deckId: deckId }, null);
+        if (!cancelled) {
+          if (d) {
+            setDeck(d);
+            setCards(c || []);
+          } else {
+            setFailed(true);
+          }
+        }
+      } catch (_err) {
+        if (!cancelled) {
+          setFailed(true);
+        }
+      }
+    })();
+    return function() { cancelled = true; };
+  }, [deckId]);
+
+  async function handleUpdateCard(cardId: string, updates: any): Promise<void> {
+    await db.update("cards", cardId, updates);
+  }
+
+  if (failed) {
+    return (
+      <a className="chat-widget chat-widget-fallback" href={"/study/flashcards/" + deckId} style={Object.assign({}, WIDGET_STYLE, { textDecoration: "underline" })}>
+        Practice this deck &rarr;
+      </a>
+    );
+  }
+  if (!deck || cards.length === 0) {
+    return null;
+  }
+
+  var currentCard = cards[Math.min(viewIndex, cards.length - 1)];
+
+  return (
+    <React.Fragment>
+      {focusMode ? (
+        <FlashcardReview
+          cards={cards}
+          onUpdateCard={handleUpdateCard}
+          focusMode={true}
+          onEnterFocusMode={function() { setFocusMode(true); }}
+          onExitFocusMode={function() { setFocusMode(false); }}
+        />
+      ) : null}
+
+      <div className="chat-widget chat-widget-deck" style={WIDGET_STYLE}>
+        <div className="chat-widget-head" style={WIDGET_HEAD_STYLE}>
+          <Icon name="ti-cards" />
+          <span className="chat-widget-title" style={WIDGET_TITLE_STYLE}>{deck.title}</span>
+          <span className="chat-widget-meta" style={WIDGET_META_STYLE}>
+            {viewIndex + 1} of {cards.length} cards
+          </span>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", margin: "12px 0", position: "relative" }}>
+          <button
+            type="button"
+            disabled={viewIndex === 0}
+            onClick={function() {
+              if (viewIndex > 0) {
+                setViewIndex(viewIndex - 1);
+                setIsFlipped(false);
+              }
+            }}
+            style={{
+              width: "38px",
+              height: "38px",
+              borderRadius: "50%",
+              background: viewIndex === 0 ? "rgba(255, 255, 255, 0.4)" : "#ffffff",
+              border: "1px solid #cbd5e1",
+              color: viewIndex === 0 ? "#cbd5e1" : "#0f172a",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: viewIndex === 0 ? "default" : "pointer",
+              flexShrink: 0,
+              boxShadow: viewIndex === 0 ? "none" : "0 2px 8px rgba(0, 0, 0, 0.15)",
+              transition: "all 0.2s ease"
+            }}
+            title="Previous Card"
+            aria-label="Previous Card"
+          >
+            <i className="ti ti-chevron-left" style={{ fontSize: "20px", fontWeight: "bold" }} />
+          </button>
+
+          <div
+            className={"mini-flashcard-3d-wrap" + (isFlipped ? " is-flipped" : "")}
+            style={{
+              flex: 1,
+              position: "relative",
+              minHeight: "220px",
+              background: "#ffffff",
+              border: isFlipped ? "2px solid #2563eb" : "2px solid #e2e8f0",
+              borderRadius: "16px",
+              padding: "24px 28px",
+              cursor: "pointer",
+              textAlign: "center",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 6px 18px rgba(0, 0, 0, 0.12)",
+              transition: "all 0.3s ease",
+              userSelect: "none"
+            }}
+            onClick={function() {
+              setIsFlipped(function(prev) { return !prev; });
+            }}
+            title="Click to flip card"
+          >
+            <button
+              type="button"
+              style={{
+                position: "absolute",
+                top: "12px",
+                right: "12px",
+                background: "rgba(15, 23, 42, 0.08)",
+                color: "#0f172a",
+                border: "1px solid rgba(15, 23, 42, 0.15)",
+                borderRadius: "50%",
+                width: "32px",
+                height: "32px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                fontSize: "16px",
+                transition: "all 0.2s ease",
+                zIndex: 10
+              }}
+              onClick={function(e) {
+                e.stopPropagation();
+                setFocusMode(true);
+              }}
+              title="Enter Focus Mode"
+              aria-label="Enter Focus Mode"
+            >
+              <i className="ti ti-arrows-maximize" />
+            </button>
+
+            <p style={{
+              fontSize: "18px",
+              fontWeight: 800,
+              fontFamily: "'Outfit', 'Inter', sans-serif",
+              color: "#0f172a",
+              lineHeight: 1.35,
+              margin: 0,
+              maxWidth: "90%",
+              wordBreak: "break-word"
+            }}>
+              {isFlipped ? currentCard.back : currentCard.front}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            disabled={viewIndex >= cards.length - 1}
+            onClick={function() {
+              if (viewIndex < cards.length - 1) {
+                setViewIndex(viewIndex + 1);
+                setIsFlipped(false);
+              }
+            }}
+            style={{
+              width: "38px",
+              height: "38px",
+              borderRadius: "50%",
+              background: viewIndex >= cards.length - 1 ? "rgba(255, 255, 255, 0.4)" : "#ffffff",
+              border: "1px solid #cbd5e1",
+              color: viewIndex >= cards.length - 1 ? "#cbd5e1" : "#0f172a",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: viewIndex >= cards.length - 1 ? "default" : "pointer",
+              flexShrink: 0,
+              boxShadow: viewIndex >= cards.length - 1 ? "none" : "0 2px 8px rgba(0, 0, 0, 0.15)",
+              transition: "all 0.2s ease"
+            }}
+            title="Next Card"
+            aria-label="Next Card"
+          >
+            <i className="ti ti-chevron-right" style={{ fontSize: "20px", fontWeight: "bold" }} />
+          </button>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "12px" }}>
+          <button
+            type="button"
+            onClick={function() {
+              setIsFlipped(function(prev) { return !prev; });
+            }}
+            style={{
+              background: "#ffffff",
+              color: "#0f172a",
+              border: "1px solid #cbd5e1",
+              borderRadius: "10px",
+              padding: "8px 16px",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+              boxShadow: "0 2px 6px rgba(0, 0, 0, 0.08)"
+            }}
+          >
+            {isFlipped ? "Show Question" : "Reveal Answer"}
+          </button>
+
+          <a className="chat-widget-cta" href={"/study/flashcards/" + deckId} style={Object.assign({}, WIDGET_CTA_STYLE, { marginTop: 0 })}>
+            Practice Deck &rarr;
+          </a>
+        </div>
+      </div>
+    </React.Fragment>
+  );
+}
+
+import QuizRunner from "../_components/QuizRunner";
+
+function getOptionExplanation(question: any, opt: string, idx: number): string {
+  if (!question.explanations && !question.rubric) {
+    return opt.trim().toLowerCase() === String(question.answer || "").trim().toLowerCase()
+      ? "Correct choice based on the material."
+      : "Incorrect choice based on the material.";
+  }
+  var exp: any = question.explanations;
+  if (!exp && question.rubric) {
+    try {
+      exp = JSON.parse(question.rubric);
+    } catch (_e) {
+      exp = question.rubric;
+    }
+  }
+  if (typeof exp === "string" && exp.trim().length > 0) {
+    return exp;
+  }
+  if (Array.isArray(exp)) {
+    if (exp[idx]) return String(exp[idx]);
+  }
+  if (typeof exp === "object" && exp !== null) {
+    if (exp[opt]) return String(exp[opt]);
+
+    var keys = Object.keys(exp);
+    for (var i = 0; i < keys.length; i++) {
+      if (keys[i].trim().toLowerCase() === opt.trim().toLowerCase()) {
+        return String(exp[keys[i]]);
+      }
+    }
+
+    var letter = String.fromCharCode(65 + idx);
+    var num = String(idx + 1);
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i].trim().toUpperCase();
+      if (k === letter || k === "OPTION " + letter || k === "OPTION" + letter || k === num || k === "OPTION " + num) {
+        return String(exp[keys[i]]);
+      }
+    }
+
+    for (var i = 0; i < keys.length; i++) {
+      if (opt.toLowerCase().includes(keys[i].trim().toLowerCase()) || keys[i].toLowerCase().includes(opt.trim().toLowerCase())) {
+        return String(exp[keys[i]]);
+      }
+    }
+  }
+
+  return opt.trim().toLowerCase() === String(question.answer || "").trim().toLowerCase()
+    ? "Correct choice based on the material."
+    : "Incorrect choice based on the material.";
+}
+
+function QuizCard(props: { quizId: string }): React.ReactNode {
+  var quizId = props.quizId;
+  var [quiz, setQuiz] = React.useState<any | null>(null);
+  var [questions, setQuestions] = React.useState<any[]>([]);
+  var [viewIndex, setViewIndex] = React.useState(0);
+  var [userAnswers, setUserAnswers] = React.useState<Record<string, string>>({});
+  var [submittingQuiz, setSubmittingQuiz] = React.useState(false);
+  var [quizResults, setQuizResults] = React.useState<Record<string, { correct: boolean; feedback?: string }> | null>(null);
+  var [showEssayAnswer, setShowEssayAnswer] = React.useState<Record<string, boolean>>({});
+  var [submittedEssay, setSubmittedEssay] = React.useState<Record<string, boolean>>({});
+  var [gradingEssay, setGradingEssay] = React.useState<Record<string, boolean>>({});
+  var [essayGradeResults, setEssayGradeResults] = React.useState<Record<string, { score: number; feedback: string } | null>>({});
+  var [focusMode, setFocusMode] = React.useState(false);
+  var [failed, setFailed] = React.useState(false);
+
+  React.useEffect(function() {
+    var cancelled = false;
+    (async function() {
+      try {
+        var q = await db.getById("quizzes", quizId);
+        var qs = await db.listAll("questions", { quizId: quizId }, null);
+        if (!cancelled) {
+          if (q) {
+            setQuiz(q);
+            setQuestions(qs || []);
+          } else {
+            setFailed(true);
+          }
+        }
+      } catch (_err) {
+        if (!cancelled) {
+          setFailed(true);
+        }
+      }
+    })();
+    return function() { cancelled = true; };
+  }, [quizId]);
+
+  async function handleQuizSubmit() {
+    if (submittingQuiz) return;
+    setSubmittingQuiz(true);
+    try {
+      var newResults: Record<string, { correct: boolean; feedback?: string }> = {};
+      var correctCount = 0;
+
+      for (var i = 0; i < questions.length; i++) {
+        var q = questions[i];
+        var userAns = (userAnswers[q.id] || "").trim();
+        var rawOpts = q.options;
+        var isEssayQ = q.kind === "essay" || (!rawOpts || rawOpts.length === 0) && q.kind !== "tf";
+
+        if (!isEssayQ) {
+          var isCorrect = userAns.toLowerCase() === String(q.answer || "").trim().toLowerCase();
+          newResults[q.id] = { correct: isCorrect };
+          if (isCorrect) correctCount++;
+        } else {
+          if (userAns) {
+            try {
+              var rubricStr = q.rubric || q.answer || "";
+              var grade = await aiGradeEssay(q.prompt, rubricStr, userAns);
+              var passed = grade.score >= 50;
+              newResults[q.id] = {
+                correct: passed,
+                feedback: "Score: " + grade.score + "/100. " + grade.feedback
+              };
+              if (passed) correctCount++;
+            } catch (_e) {
+              newResults[q.id] = { correct: false, feedback: "Grading error occurred." };
+            }
+          } else {
+            newResults[q.id] = { correct: false, feedback: "No answer provided." };
+          }
+        }
+      }
+
+      setQuizResults(newResults);
+
+      var finalScorePct = questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0;
+      try {
+        await db.insert("attempts", {
+          quizId: quizId,
+          score: finalScorePct,
+          answers: JSON.stringify(userAnswers),
+          gradedAt: new Date().toISOString()
+        });
+      } catch (_dbErr) {}
+    } finally {
+      setSubmittingQuiz(false);
+    }
+  }
+
+  if (failed) {
+    return (
+      <a className="chat-widget chat-widget-fallback" href={"/study/quizzes/" + quizId} style={Object.assign({}, WIDGET_STYLE, { textDecoration: "underline" })}>
+        Take this quiz &rarr;
+      </a>
+    );
+  }
+  if (!quiz || questions.length === 0) {
+    return null;
+  }
+
+  if (quizResults !== null) {
+    var scoreCount = 0;
+    var resultKeys = Object.keys(quizResults);
+    for (var rIdx = 0; rIdx < resultKeys.length; rIdx++) {
+      if (quizResults[resultKeys[rIdx]].correct) scoreCount++;
+    }
+    var scorePct = questions.length > 0 ? Math.round((scoreCount / questions.length) * 100) : 0;
+
+    return (
+      <React.Fragment>
+        {focusMode ? (
+          <div className="focus-overlay" onClick={function() { setFocusMode(false); }}>
+            <div className="focus-header" onClick={function(e) { e.stopPropagation(); }}>
+              <h3>Quiz Review: {quiz.title}</h3>
+              <button
+                type="button"
+                className="focus-exit-btn"
+                onClick={function() { setFocusMode(false); }}
+                title="Exit Focus Mode"
+              >
+                <i className="ti ti-x"></i>
+              </button>
+            </div>
+            <div className="focus-content-wrap" style={{ width: "95%", maxWidth: "800px" }} onClick={function(e) { e.stopPropagation(); }}>
+              <QuizRunner
+                questions={questions}
+                onSubmit={function() { setFocusMode(false); }}
+                onGradeEssay={async function() { return null; }}
+                results={quizResults}
+              />
+            </div>
+          </div>
+        ) : null}
+
+        <div className="chat-widget chat-widget-quiz" style={WIDGET_STYLE}>
+          <div className="chat-widget-head" style={WIDGET_HEAD_STYLE}>
+            <Icon name="ti-quiz" />
+            <span className="chat-widget-title" style={WIDGET_TITLE_STYLE}>{quiz.title}</span>
+            <span className="chat-widget-meta" style={{
+              background: scorePct >= 50 ? "#10b981" : "#ef4444",
+              color: "#ffffff",
+              fontWeight: 700,
+              padding: "4px 10px",
+              borderRadius: "12px",
+              fontSize: "12px"
+            }}>
+              Score: {scoreCount} / {questions.length} ({scorePct}%)
+            </span>
+          </div>
+
+          <div style={{
+            background: "#ffffff",
+            border: "2px solid #e2e8f0",
+            borderRadius: "16px",
+            padding: "20px 24px",
+            margin: "12px 0",
+            boxShadow: "0 6px 18px rgba(0, 0, 0, 0.12)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "16px",
+            maxHeight: "450px",
+            overflowY: "auto"
+          }}>
+            {questions.map(function(q: any, qIdx: number) {
+              var activeResults = quizResults || {};
+              var qRes = activeResults[q.id];
+              var isQCorrect = qRes?.correct;
+              var userAnsText = userAnswers[q.id] || "(No answer)";
+              var rawOpts = q.options;
+              var isEssayQ = q.kind === "essay" || (!rawOpts || rawOpts.length === 0) && q.kind !== "tf";
+
+              return (
+                <div key={q.id} style={{
+                  padding: "14px 16px",
+                  borderRadius: "12px",
+                  background: isQCorrect ? "#f0fdf4" : "#fef2f2",
+                  border: "1px solid " + (isQCorrect ? "#a7f3d0" : "#fca5a5")
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+                    <span style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>
+                      Q{qIdx + 1}. {q.prompt}
+                    </span>
+                    <span style={{
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      padding: "2px 8px",
+                      borderRadius: "6px",
+                      background: isQCorrect ? "#10b981" : "#ef4444",
+                      color: "#ffffff"
+                    }}>
+                      {isQCorrect ? "✓ Correct" : "✕ Incorrect"}
+                    </span>
+                  </div>
+
+                  <div style={{ fontSize: "13px", color: "#334155", marginBottom: "6px" }}>
+                    <strong>Your Answer:</strong> {userAnsText}
+                  </div>
+
+                  {!isEssayQ ? (
+                    <div style={{ fontSize: "13px", color: "#065f46" }}>
+                      <strong>Correct Answer:</strong> {q.answer}
+                    </div>
+                  ) : null}
+
+                  {qRes?.feedback ? (
+                    <div style={{ fontSize: "12px", color: "#475569", marginTop: "6px", fontStyle: "italic" }}>
+                      <strong>Feedback:</strong> {qRes.feedback}
+                    </div>
+                  ) : null}
+
+                  {isEssayQ ? (
+                    <div style={{
+                      marginTop: "6px",
+                      padding: "8px 12px",
+                      borderRadius: "8px",
+                      background: "#ecfdf5",
+                      border: "1px solid #a7f3d0",
+                      color: "#065f46",
+                      fontSize: "12px"
+                    }}>
+                      <strong>Sample / Model Answer:</strong> {q.answer || q.rubric || "Refer to course notes."}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "12px" }}>
+            <button
+              type="button"
+              onClick={function() {
+                setQuizResults(null);
+                setUserAnswers({});
+              }}
+              style={{
+                background: "#ffffff",
+                color: "#0f172a",
+                border: "1px solid #cbd5e1",
+                borderRadius: "10px",
+                padding: "8px 16px",
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: "pointer",
+                boxShadow: "0 2px 6px rgba(0, 0, 0, 0.08)"
+              }}
+            >
+              Retake Quiz
+            </button>
+            <a className="chat-widget-cta" href={"/study/quizzes/" + quizId} style={Object.assign({}, WIDGET_CTA_STYLE, { marginTop: 0 })}>
+              Go to Quiz page &rarr;
+            </a>
+          </div>
+        </div>
+      </React.Fragment>
+    );
+  }
+
+  var currentQuestion = questions[Math.min(viewIndex, questions.length - 1)];
+  var selectedOpt = userAnswers[currentQuestion.id];
+  var isAnswered = typeof selectedOpt === "string" && selectedOpt.length > 0;
+
+  var rawOptions = currentQuestion.options;
+  var isEssay = currentQuestion.kind === "essay" || (!rawOptions || rawOptions.length === 0) && currentQuestion.kind !== "tf";
+  var optionsList: string[] = Array.isArray(rawOptions) && rawOptions.length > 0
+    ? rawOptions
+    : (currentQuestion.kind === "tf" ? ["True", "False"] : []);
+
+  if (optionsList.length === 0) {
+    isEssay = true;
+  }
+
+  return (
+    <React.Fragment>
+      {focusMode ? (
+        <div className="focus-overlay" onClick={function() { setFocusMode(false); }}>
+          <div className="focus-header" onClick={function(e) { e.stopPropagation(); }}>
+            <h3>Quiz Review: {quiz.title}</h3>
+            <button
+              type="button"
+              className="focus-exit-btn"
+              onClick={function() { setFocusMode(false); }}
+              title="Exit Focus Mode"
+            >
+              <i className="ti ti-x"></i>
+            </button>
+          </div>
+          <div className="focus-content-wrap" style={{ width: "95%", maxWidth: "800px" }} onClick={function(e) { e.stopPropagation(); }}>
+            <QuizRunner
+              questions={questions}
+              onSubmit={function() { setFocusMode(false); }}
+              onGradeEssay={async function() { return null; }}
+              results={null}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      <div className="chat-widget chat-widget-quiz" style={WIDGET_STYLE}>
+        <div className="chat-widget-head" style={WIDGET_HEAD_STYLE}>
+          <Icon name="ti-quiz" />
+          <span className="chat-widget-title" style={WIDGET_TITLE_STYLE}>{quiz.title}</span>
+          <span className="chat-widget-meta" style={WIDGET_META_STYLE}>
+            Question {viewIndex + 1} of {questions.length}
+          </span>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", margin: "12px 0", position: "relative" }}>
+          <button
+            type="button"
+            disabled={viewIndex === 0}
+            onClick={function() {
+              if (viewIndex > 0) {
+                setViewIndex(viewIndex - 1);
+              }
+            }}
+            style={{
+              width: "38px",
+              height: "38px",
+              borderRadius: "50%",
+              background: viewIndex === 0 ? "rgba(255, 255, 255, 0.4)" : "#ffffff",
+              border: "1px solid #cbd5e1",
+              color: viewIndex === 0 ? "#cbd5e1" : "#0f172a",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: viewIndex === 0 ? "default" : "pointer",
+              flexShrink: 0,
+              boxShadow: viewIndex === 0 ? "none" : "0 2px 8px rgba(0, 0, 0, 0.15)",
+              transition: "all 0.2s ease"
+            }}
+            title="Previous Question"
+            aria-label="Previous Question"
+          >
+            <i className="ti ti-chevron-left" style={{ fontSize: "20px", fontWeight: "bold" }} />
+          </button>
+
+          <div
+            style={{
+              flex: 1,
+              position: "relative",
+              background: "#ffffff",
+              border: "2px solid #e2e8f0",
+              borderRadius: "16px",
+              padding: "20px 24px",
+              boxShadow: "0 6px 18px rgba(0, 0, 0, 0.12)"
+            }}
+          >
+            <button
+              type="button"
+              style={{
+                position: "absolute",
+                top: "12px",
+                right: "12px",
+                background: "rgba(15, 23, 42, 0.08)",
+                color: "#0f172a",
+                border: "1px solid rgba(15, 23, 42, 0.15)",
+                borderRadius: "50%",
+                width: "32px",
+                height: "32px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                fontSize: "16px",
+                transition: "all 0.2s ease",
+                zIndex: 10
+              }}
+              onClick={function() {
+                setFocusMode(true);
+              }}
+              title="Enter Focus Mode"
+              aria-label="Enter Focus Mode"
+            >
+              <i className="ti ti-arrows-maximize" />
+            </button>
+
+            <p style={{
+              fontSize: "15px",
+              fontWeight: 700,
+              fontFamily: "'Outfit', 'Inter', sans-serif",
+              color: "#0f172a",
+              lineHeight: 1.4,
+              margin: "0 0 14px 0",
+              paddingRight: "36px"
+            }}>
+              {viewIndex + 1}. {currentQuestion.prompt}
+            </p>
+
+            {isEssay ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                <textarea
+                  value={userAnswers[currentQuestion.id] || ""}
+                  onChange={function(e) {
+                    var val = e.target.value;
+                    setUserAnswers(function(prev) {
+                      var next = Object.assign({}, prev);
+                      next[currentQuestion.id] = val;
+                      return next;
+                    });
+                  }}
+                  placeholder="Write your open-ended answer here..."
+                  rows={3}
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px",
+                    borderRadius: "10px",
+                    border: "1px solid #cbd5e1",
+                    fontSize: "13px",
+                    fontFamily: "inherit",
+                    color: "#0f172a",
+                    background: "#f8fafc",
+                    outline: "none",
+                    resize: "vertical"
+                  }}
+                />
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {optionsList.map(function(opt: string, oi: number) {
+                  var letter = String.fromCharCode(65 + oi);
+                  var isTargetCorrect = opt.trim().toLowerCase() === String(currentQuestion.answer || "").trim().toLowerCase();
+                  var isSelected = selectedOpt === opt;
+
+                  var optionBg = "#f8fafc";
+                  var optionBorder = "1px solid #e2e8f0";
+                  var optionColor = "#1e293b";
+                  var badgeBg = "#e2e8f0";
+                  var badgeColor = "#475569";
+
+                  if (isAnswered) {
+                    if (isTargetCorrect) {
+                      optionBg = "#ecfdf5";
+                      optionBorder = "2px solid #10b981";
+                      optionColor = "#065f46";
+                      badgeBg = "#10b981";
+                      badgeColor = "#ffffff";
+                    } else if (isSelected) {
+                      optionBg = "#fef2f2";
+                      optionBorder = "2px solid #ef4444";
+                      optionColor = "#991b1b";
+                      badgeBg = "#ef4444";
+                      badgeColor = "#ffffff";
+                    } else {
+                      optionBg = "#f8fafc";
+                      optionBorder = "1px solid #e2e8f0";
+                      optionColor = "#64748b";
+                    }
+                  }
+
+                  var explanationText = isAnswered ? getOptionExplanation(currentQuestion, opt, oi) : "";
+
+                  return (
+                    <div key={oi} style={{ width: "100%" }}>
+                      <button
+                        type="button"
+                        onClick={function() {
+                          if (isAnswered) return;
+                          setUserAnswers(function(prev) {
+                            var next = Object.assign({}, prev);
+                            next[currentQuestion.id] = opt;
+                            return next;
+                          });
+                        }}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          width: "100%",
+                          padding: "10px 14px",
+                          borderRadius: "10px",
+                          background: optionBg,
+                          border: optionBorder,
+                          color: optionColor,
+                          fontWeight: isSelected || (isAnswered && isTargetCorrect) ? 700 : 500,
+                          fontSize: "13px",
+                          textAlign: "left",
+                          cursor: isAnswered ? "default" : "pointer",
+                          transition: "all 0.15s ease"
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                          <span style={{
+                            width: "24px",
+                            height: "24px",
+                            borderRadius: "50%",
+                            background: badgeBg,
+                            color: badgeColor,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            flexShrink: 0
+                          }}>
+                            {letter}
+                          </span>
+                          <span>{opt}</span>
+                        </div>
+
+                        {isAnswered ? (
+                          <span style={{
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            padding: "2px 8px",
+                            borderRadius: "6px",
+                            background: isTargetCorrect ? "#10b981" : isSelected ? "#ef4444" : "transparent",
+                            color: isTargetCorrect || isSelected ? "#ffffff" : "#94a3b8"
+                          }}>
+                            {isTargetCorrect ? "✓ Correct" : isSelected ? "✕ Incorrect" : ""}
+                          </span>
+                        ) : null}
+                      </button>
+
+                      {isAnswered && explanationText && (isTargetCorrect || isSelected) ? (
+                        <div style={{
+                          marginTop: "4px",
+                          padding: "8px 12px",
+                          borderRadius: "8px",
+                          fontSize: "12px",
+                          lineHeight: 1.4,
+                          background: isTargetCorrect ? "#d1fae5" : isSelected ? "#fee2e2" : "#f1f5f9",
+                          color: isTargetCorrect ? "#065f46" : isSelected ? "#991b1b" : "#475569",
+                          borderLeft: "3px solid " + (isTargetCorrect ? "#10b981" : isSelected ? "#ef4444" : "#94a3b8")
+                        }}>
+                          <strong>Explanation:</strong> {explanationText}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            disabled={viewIndex >= questions.length - 1}
+            onClick={function() {
+              if (viewIndex < questions.length - 1) {
+                setViewIndex(viewIndex + 1);
+              }
+            }}
+            style={{
+              width: "38px",
+              height: "38px",
+              borderRadius: "50%",
+              background: viewIndex >= questions.length - 1 ? "rgba(255, 255, 255, 0.4)" : "#ffffff",
+              border: "1px solid #cbd5e1",
+              color: viewIndex >= questions.length - 1 ? "#cbd5e1" : "#0f172a",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: viewIndex >= questions.length - 1 ? "default" : "pointer",
+              flexShrink: 0,
+              boxShadow: viewIndex >= questions.length - 1 ? "none" : "0 2px 8px rgba(0, 0, 0, 0.15)",
+              transition: "all 0.2s ease"
+            }}
+            title="Next Question"
+            aria-label="Next Question"
+          >
+            <i className="ti ti-chevron-right" style={{ fontSize: "20px", fontWeight: "bold" }} />
+          </button>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginTop: "12px", gap: "10px" }}>
+          {viewIndex === questions.length - 1 ? (
+            <button
+              type="button"
+              disabled={submittingQuiz}
+              onClick={handleQuizSubmit}
+              style={{
+                background: "#ffffff",
+                color: "#0f172a",
+                border: "1px solid #cbd5e1",
+                borderRadius: "10px",
+                padding: "8px 20px",
+                fontSize: "13px",
+                fontWeight: 700,
+                cursor: submittingQuiz ? "default" : "pointer",
+                boxShadow: "0 2px 8px rgba(0, 0, 0, 0.12)",
+                transition: "all 0.15s ease",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px"
+              }}
+            >
+              {submittingQuiz ? (
+                <React.Fragment>
+                  <i className="ti ti-loader spin" /> Submitting...
+                </React.Fragment>
+              ) : (
+                "Submit Quiz"
+              )}
+            </button>
+          ) : (
+            <a className="chat-widget-cta" href={"/study/quizzes/" + quizId} style={Object.assign({}, WIDGET_CTA_STYLE, { marginTop: 0 })}>
+              Go to Quiz page &rarr;
+            </a>
+          )}
+        </div>
+      </div>
+    </React.Fragment>
+  );
+}
+
+function ExamPaperCard(props: { url: string }): React.ReactNode {
+  var url = props.url;
+  var filename = url.split("?")[0].split("/").pop() || "exam-paper.pdf";
+  return (
+    <div className="chat-widget chat-widget-paper" style={WIDGET_STYLE}>
+      <div className="chat-widget-head" style={WIDGET_HEAD_STYLE}>
+        <Icon name="ti-file-text" />
+        <span className="chat-widget-title" style={WIDGET_TITLE_STYLE}>{filename}</span>
+        <span className="chat-widget-meta" style={WIDGET_META_STYLE}>Exam paper</span>
+      </div>
+      <div className="chat-widget-paper-actions">
+        <a className="chat-widget-cta" href={url} download={filename} style={Object.assign({}, WIDGET_CTA_STYLE, { marginRight: "8px" })}>Download PDF</a>
+        <a className="chat-widget-cta" href={url} target="_blank" rel="noopener noreferrer" style={WIDGET_CTA_STYLE}>View PDF</a>
+      </div>
+    </div>
+  );
+}
+
+function classifyArtifact(m: RegExpExecArray): ArtifactMatch | null {
+  if (m[2] !== undefined) {
+    var url = m[2];
+    if (url.indexOf("/study/flashcards/") !== -1) {
+      var did = url.match(/\/study\/flashcards\/([0-9a-f-]{8,})/);
+      if (did) {
+        return { kind: "deck", id: did[1] };
+      }
+    }
+    if (url.indexOf("/study/quizzes/") !== -1) {
+      var qid = url.match(/\/study\/quizzes\/([0-9a-f-]{8,})/);
+      if (qid) {
+        return { kind: "quiz", id: qid[1] };
+      }
+    }
+    if (/\.pdf$/i.test(url)) {
+      return { kind: "pdf", url: url };
+    }
+    return null;
+  }
+  if (m[3] !== undefined) {
+    return { kind: "deck", id: m[3] };
+  }
+  if (m[4] !== undefined) {
+    return { kind: "quiz", id: m[4] };
+  }
+  if (m[5] !== undefined) {
+    return { kind: "pdf", url: m[5] };
+  }
+  return null;
+}
+
+function renderAssistantContent(content: string): React.ReactNode[] {
+  var parts: React.ReactNode[] = [];
+  if (!content) {
+    return parts;
+  }
+  var m: RegExpExecArray | null;
+  var last = 0;
+  var key = 0;
+  while ((m = ARTIFACT_RE.exec(content)) !== null) {
+    if (m.index > last) {
+      parts.push(<div key={key++} dangerouslySetInnerHTML={{ __html: renderMarkdown(content.slice(last, m.index)) }} />);
+    }
+    var artifact = classifyArtifact(m);
+    if (artifact) {
+      if (artifact.kind === "deck") {
+        parts.push(<FlashcardCard key={key++} deckId={artifact.id} />);
+      } else if (artifact.kind === "quiz") {
+        parts.push(<QuizCard key={key++} quizId={artifact.id} />);
+      } else {
+        parts.push(<ExamPaperCard key={key++} url={artifact.url} />);
+      }
+    } else {
+      parts.push(<div key={key++} dangerouslySetInnerHTML={{ __html: renderMarkdown(m[0]) }} />);
+    }
+    last = m.index + m[0].length;
+  }
+  if (last < content.length) {
+    parts.push(<div key={key++} dangerouslySetInnerHTML={{ __html: renderMarkdown(content.slice(last)) }} />);
+  }
+  return parts;
 }
 
 export default function ChatPage() {
@@ -70,6 +1177,7 @@ export default function ChatPage() {
   var [attachments, setAttachments] = React.useState<Attachment[]>([]);
   var [attachError, setAttachError] = React.useState("");
   var [lightbox, setLightbox] = React.useState<{ url: string; caption: string } | null>(null);
+  var [toolActivity, setToolActivity] = React.useState<ToolActivity[]>([]);
   var messagesEndRef = React.useRef<HTMLDivElement>(null);
   var textareaRef = React.useRef<HTMLTextAreaElement>(null);
   var fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -419,6 +1527,7 @@ export default function ChatPage() {
       pendingBufferRef.current = "";
       displayedTextRef.current = "";
       isStreamDoneRef.current = false;
+      setToolActivity([]);
       if (typewriterIntervalRef.current) {
         clearInterval(typewriterIntervalRef.current);
         typewriterIntervalRef.current = null;
@@ -453,6 +1562,7 @@ export default function ChatPage() {
         body: JSON.stringify({
           question: question,
           materialIds: isGreeting ? [] : readyMaterialIds,
+          courseId: activeCourse?.id || "",
           chatHistory: chatHistory,
           summary: currentSummary,
           memories: memories,
@@ -473,6 +1583,8 @@ export default function ChatPage() {
 
       var decoder = new TextDecoder();
       var assistantMessage = "";
+      var sseBuffer = "";
+      var textStarted = false;
 
       setMessages(function(prev) {
         var updated = prev.slice();
@@ -480,22 +1592,59 @@ export default function ChatPage() {
         return updated;
       });
 
-      while (true) {
-        var result = await reader.read();
-        if (result.done) {
-          isStreamDoneRef.current = true;
-          break;
-        }
-        var text = decoder.decode(result.value, { stream: true });
-        if (text !== "") {
+      function handleSSEEvent(ev: SSEEvent): void {
+        if (ev.type === "tool_start") {
+          setToolActivity(function(prev) {
+            return prev.concat([{ tool: ev.tool, status: "running", durationMs: 0 }]);
+          });
+        } else if (ev.type === "tool_end") {
+          setToolActivity(function(prev) {
+            return prev.map(function(t) {
+              if (t.tool === ev.tool) {
+                return { tool: t.tool, status: "done", durationMs: ev.durationMs };
+              }
+              return t;
+            });
+          });
+        } else if (ev.type === "text") {
+          if (!textStarted) {
+            textStarted = true;
+            setToolActivity([]);
+          }
           setIsSearching(false);
-          assistantMessage = assistantMessage + text;
-          pendingBufferRef.current += text;
+          assistantMessage = assistantMessage + ev.content;
+          pendingBufferRef.current += ev.content;
           startTypewriter();
+        } else if (ev.type === "done") {
+          setToolActivity([]);
         }
       }
 
-      setIsSearching(false);
+      while (true) {
+        var result = await reader.read();
+        if (result.done) {
+          break;
+        }
+        sseBuffer = sseBuffer + decoder.decode(result.value, { stream: true });
+        var events = sseBuffer.split("\n\n");
+        sseBuffer = events.pop() || "";
+        for (var ei = 0; ei < events.length; ei++) {
+          var line = events[ei].trim();
+          if (line === "") {
+            continue;
+          }
+          if (line.indexOf("data:") === 0) {
+            line = line.slice(5).trim();
+          }
+          try {
+            handleSSEEvent(JSON.parse(line) as SSEEvent);
+          } catch (_parseErr) {
+            console.warn("[CHAT] Skipping malformed SSE event:", line);
+          }
+        }
+      }
+
+      isStreamDoneRef.current = true;
 
       if (user && targetConvId) {
         await db.addMessage(targetConvId, "assistant", assistantMessage);
@@ -672,10 +1821,12 @@ export default function ChatPage() {
                       {isUser ? (
                         <div className="chat-text chat-text-user">{renderUserContent(msg.content)}</div>
                       ) : (
-                        <div
-                          className="chat-text chat-text-ai"
-                          dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
-                        />
+                        <div className="chat-text chat-text-ai">
+                          {index === messages.length - 1 && loading && toolActivity.length > 0 ? (
+                            <ToolActivityStrip activity={toolActivity} />
+                          ) : null}
+                          {renderAssistantContent(msg.content)}
+                        </div>
                       )}
                     </div>
                   </div>

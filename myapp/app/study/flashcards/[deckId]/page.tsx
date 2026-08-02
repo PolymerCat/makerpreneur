@@ -6,6 +6,7 @@ import { PageHero } from "@/components/layout/PageHero";
 import { db } from "../../_lib/db";
 import type { Deck, Card as CardType } from "../../_lib/types";
 import FlashcardReview from "../../_components/FlashcardReview";
+import Link from "next/link";
 import { CourseBar } from "../../_components/CourseBar";
 
 export default function DeckReviewPage(props: { params: Promise<{ deckId: string }> }) {
@@ -14,26 +15,35 @@ export default function DeckReviewPage(props: { params: Promise<{ deckId: string
   var [deck, setDeck] = React.useState<Deck | null>(null);
   var [cards, setCards] = React.useState<CardType[]>([]);
   var [focusMode, setFocusMode] = React.useState(false);
+  var [loading, setLoading] = React.useState(true);
 
   async function loadData(): Promise<void> {
     if (!deckId) {
+      setLoading(false);
       return;
     }
-    var d = await db.getById("decks", deckId);
-    setDeck(d);
-    var allCards = await db.listAll("cards", { deckId: deckId }, null);
-    var now = new Date();
-    var dueCards = allCards.filter(function(c: CardType) {
-      return new Date(c.dueDate) <= now;
-    });
-    if (dueCards.length === 0) {
-      dueCards = allCards;
+    try {
+      var d = await db.getById("decks", deckId);
+      setDeck(d);
+      var allCards = await db.listAll("cards", { deckId: deckId }, null);
+      var now = new Date();
+      var dueCards = allCards.filter(function(c: CardType) {
+        return new Date(c.dueDate) <= now;
+      });
+      if (dueCards.length === 0) {
+        dueCards = allCards;
+      }
+      setCards(dueCards);
+    } catch (err) {
+      console.error("Error loading flashcard deck:", err);
+    } finally {
+      setLoading(false);
     }
-    setCards(dueCards);
   }
 
   React.useEffect(function() {
     if (!deckId) {
+      setLoading(false);
       return;
     }
     (async function() {
@@ -45,10 +55,21 @@ export default function DeckReviewPage(props: { params: Promise<{ deckId: string
     await db.update("cards", cardId, updates);
   }
 
-  if (!deck) {
+  if (loading) {
     return (
       <AppShell>
         <p>Loading...</p>
+      </AppShell>
+    );
+  }
+
+  if (!deck) {
+    return (
+      <AppShell>
+        <div className="p-6 text-center">
+          <p className="text-muted-foreground mb-4">Deck not found or could not be loaded.</p>
+          <Link href="/study/flashcards" className="btn btn-secondary">Back to Flashcards</Link>
+        </div>
       </AppShell>
     );
   }

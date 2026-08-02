@@ -4,7 +4,30 @@ import { aiNameTopics, aiExtractPastQuestions } from "../actions";
 var supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 var supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
-function getClient() {
+var serverClientInstance: any = null;
+var serverClientGetter: (() => Promise<any>) | null = null;
+
+export function setServerClientInstance(client: any) {
+  serverClientInstance = client;
+}
+
+export function setServerClientGetter(fn: () => Promise<any>) {
+  serverClientGetter = fn;
+}
+
+async function getClient() {
+  if (typeof window === "undefined") {
+    if (serverClientInstance) {
+      return serverClientInstance;
+    }
+    if (serverClientGetter) {
+      try {
+        return await serverClientGetter();
+      } catch (err) {
+        console.error("[SDB] serverClientGetter failed:", err);
+      }
+    }
+  }
   return createBrowserClient(supabaseUrl, supabaseAnonKey);
 }
 
@@ -105,7 +128,7 @@ function fixJsonFields(table: string, row: any): any {
 /* --- PUBLIC API --- */
 
 async function insert(table: string, data: any): Promise<any> {
-  var client = getClient();
+  var client = await getClient();
   var snake = toSnake(table, data);
   var result = await client.from(table).insert(snake).select().single();
   if (result.error) {
@@ -119,7 +142,7 @@ async function batchInsert(table: string, records: any[]): Promise<any[]> {
   if (records.length === 0) {
     return [];
   }
-  var client = getClient();
+  var client = await getClient();
   var snake = records.map(function(r) { return toSnake(table, r); });
   var result = await client.from(table).insert(snake).select();
   if (result.error) {
@@ -131,7 +154,7 @@ async function batchInsert(table: string, records: any[]): Promise<any[]> {
 }
 
 async function getById(table: string, rowId: string): Promise<any | null> {
-  var client = getClient();
+  var client = await getClient();
   var result = await client.from(table).select("*").eq("id", rowId).single();
   if (result.error) {
     if (result.error.code === "PGRST116") {
@@ -148,7 +171,7 @@ async function listAll(
   filters: Record<string, any> | null,
   orderBy: string | null
 ): Promise<any[]> {
-  var client = getClient();
+  var client = await getClient();
   var query = client.from(table).select("*");
 
   if (filters !== null) {
@@ -181,7 +204,7 @@ async function listAll(
 }
 
 async function update(table: string, rowId: string, data: any): Promise<any | null> {
-  var client = getClient();
+  var client = await getClient();
   var snake = toSnake(table, data);
   var result = await client.from(table).update(snake).eq("id", rowId).select().single();
   if (result.error) {
@@ -195,7 +218,7 @@ async function update(table: string, rowId: string, data: any): Promise<any | nu
 }
 
 async function remove(table: string, rowId: string): Promise<boolean> {
-  var client = getClient();
+  var client = await getClient();
   var result = await client.from(table).delete().eq("id", rowId);
   if (result.error) {
     throw new Error("delete " + table + ": " + result.error.message);
@@ -208,7 +231,7 @@ async function vectorSearch(
   queryEmbedding: number[],
   limit: number
 ): Promise<any[]> {
-  var client = getClient();
+  var client = await getClient();
   var embedding = "[" + queryEmbedding.join(",") + "]";
   var result = await client.rpc("search_chunks", {
     query_embedding: embedding,
@@ -232,7 +255,7 @@ async function vectorSearch(
 }
 
 async function materialText(materialIds: string[]): Promise<string> {
-  var client = getClient();
+  var client = await getClient();
   var result = "";
   for (var i = 0; i < materialIds.length; i++) {
     var mid = materialIds[i];
@@ -257,7 +280,7 @@ async function materialText(materialIds: string[]): Promise<string> {
 }
 
 async function paperText(courseId: string): Promise<string> {
-  var client = getClient();
+  var client = await getClient();
   var res = await client.from("materials").select("id").eq("course_id", courseId).eq("category", "exam_paper");
   if (!res.data || res.data.length === 0) {
     return "";
@@ -266,7 +289,7 @@ async function paperText(courseId: string): Promise<string> {
 }
 
 async function countForCourse(courseId: string): Promise<Record<string, number>> {
-  var client = getClient();
+  var client = await getClient();
   var matResult = await client.from("materials").select("id", { count: "exact", head: true }).eq("course_id", courseId);
   var paperResult = await client.from("papers").select("id", { count: "exact", head: true }).eq("course_id", courseId);
   var quizResult = await client.from("quizzes").select("id, materials!inner(course_id)", { count: "exact", head: true })
@@ -283,7 +306,7 @@ async function countForCourse(courseId: string): Promise<Record<string, number>>
 }
 
 async function listGeneratedExams(courseId: string) {
-  var client = getClient();
+  var client = await getClient();
   var result = await client
     .from("generated_exams")
     .select("*")
@@ -296,7 +319,7 @@ async function listGeneratedExams(courseId: string) {
 }
 
 async function deleteGeneratedExam(id: string) {
-  var client = getClient();
+  var client = await getClient();
   var result = await client.from("generated_exams").delete().eq("id", id);
   if (result.error) {
     throw new Error("deleteGeneratedExam: " + result.error.message);
@@ -305,7 +328,7 @@ async function deleteGeneratedExam(id: string) {
 }
 
 async function listConversations(userId: string) {
-  var client = getClient();
+  var client = await getClient();
   var result = await client
     .from("conversations")
     .select("*")
@@ -318,7 +341,7 @@ async function listConversations(userId: string) {
 }
 
 async function createConversation(userId: string, title?: string) {
-  var client = getClient();
+  var client = await getClient();
   var now = new Date().toISOString();
   var result = await client.from("conversations").insert({
     user_id: userId,
@@ -332,7 +355,7 @@ async function createConversation(userId: string, title?: string) {
 }
 
 async function deleteConversation(id: string) {
-  var client = getClient();
+  var client = await getClient();
   var result = await client.from("conversations").delete().eq("id", id);
   if (result.error) {
     throw new Error("deleteConversation: " + result.error.message);
@@ -340,7 +363,7 @@ async function deleteConversation(id: string) {
 }
 
 async function listMessages(conversationId: string) {
-  var client = getClient();
+  var client = await getClient();
   var result = await client
     .from("messages")
     .select("*")
@@ -353,7 +376,7 @@ async function listMessages(conversationId: string) {
 }
 
 async function addMessage(conversationId: string, role: string, content: string) {
-  var client = getClient();
+  var client = await getClient();
   var now = new Date().toISOString();
   var result = await client.from("messages").insert({
     conversation_id: conversationId,
@@ -375,7 +398,7 @@ async function addMessage(conversationId: string, role: string, content: string)
 }
 
 async function updateMessage(id: string, content: string) {
-  var client = getClient();
+  var client = await getClient();
   var result = await client.from("messages").update({ content: content }).eq("id", id);
   if (result.error) {
     throw new Error("updateMessage: " + result.error.message);
@@ -383,7 +406,7 @@ async function updateMessage(id: string, content: string) {
 }
 
 async function renameConversation(id: string, title: string) {
-  var client = getClient();
+  var client = await getClient();
   var result = await client
     .from("conversations")
     .update({ title: title })
@@ -396,7 +419,7 @@ async function renameConversation(id: string, title: string) {
 /* --- Memory & Semcache Helpers --- */
 
 async function listMemories(userId: string, courseId?: string) {
-  var client = getClient();
+  var client = await getClient();
   var query = client.from("memories").select("*").eq("user_id", userId);
   if (courseId) {
     query = query.or("course_id.eq." + courseId + ",course_id.is.null");
@@ -415,7 +438,7 @@ async function memorySearch(
   queryEmbedding: number[],
   limit: number = 8
 ) {
-  var client = getClient();
+  var client = await getClient();
   var embedding = "[" + queryEmbedding.join(",") + "]";
   var result = await client.rpc("search_memories", {
     query_embedding: embedding,
@@ -442,7 +465,7 @@ async function memorySearch(
 }
 
 async function updateConversationSummary(conversationId: string, summary: string) {
-  var client = getClient();
+  var client = await getClient();
   var now = new Date().toISOString();
   var result = await client
     .from("conversations")
@@ -454,7 +477,7 @@ async function updateConversationSummary(conversationId: string, summary: string
 }
 
 async function cacheChatAnswer(question: string, queryEmbedding: number[], answer: string) {
-  var client = getClient();
+  var client = await getClient();
   var embedding = "[" + queryEmbedding.join(",") + "]";
   var result = await client.from("semcache").insert({
     question: question,
@@ -468,7 +491,7 @@ async function cacheChatAnswer(question: string, queryEmbedding: number[], answe
 }
 
 async function searchChatCache(queryEmbedding: number[], matchThreshold: number = 0.95) {
-  var client = getClient();
+  var client = await getClient();
   var embedding = "[" + queryEmbedding.join(",") + "]";
   var result = await client.rpc("search_semcache", {
     query_embedding: embedding,
@@ -486,7 +509,7 @@ async function searchChatCache(queryEmbedding: number[], matchThreshold: number 
 }
 
 async function searchSemcache(queryEmbedding: number[], matchThreshold: number = 0.95) {
-  var client = getClient();
+  var client = await getClient();
   var embedding = "[" + queryEmbedding.join(",") + "]";
   var result = await client.rpc("search_semcache", {
     query_embedding: embedding,
@@ -503,7 +526,7 @@ async function searchSemcache(queryEmbedding: number[], matchThreshold: number =
 }
 
 async function cacheChunks(question: string, queryEmbedding: number[], chunks: string[]) {
-  var client = getClient();
+  var client = await getClient();
   var embedding = "[" + queryEmbedding.join(",") + "]";
   var result = await client.from("semcache").insert({
     question: question,
@@ -522,7 +545,7 @@ async function upsertEpisodeMemory(
   content: string,
   embedding: string
 ): Promise<void> {
-  var client = getClient();
+  var client = await getClient();
   var now = new Date().toISOString();
   var existing = await client
     .from("memories")
@@ -564,7 +587,7 @@ async function upsertEpisodeMemory(
 /* --- Storage helpers --- */
 
 async function uploadFile(bucket: string, path: string, file: Blob | ArrayBuffer, contentType?: string): Promise<string> {
-  var client = getClient();
+  var client = await getClient();
   var { data, error } = await client.storage.from(bucket).upload(path, file, {
     contentType: contentType,
     upsert: true
@@ -576,13 +599,13 @@ async function uploadFile(bucket: string, path: string, file: Blob | ArrayBuffer
 }
 
 function getPublicUrl(bucket: string, path: string): string {
-  var client = getClient();
+  var client = createBrowserClient(supabaseUrl, supabaseAnonKey);
   var { data } = client.storage.from(bucket).getPublicUrl(path);
   return data.publicUrl;
 }
 
 async function getCourseAnalytics(courseId: string, userId: string, courseName?: string): Promise<any> {
-  var client = getClient();
+  var client = await getClient();
   var now = new Date();
   
   // 1. Quizzes & Attempts -> Quiz Average
@@ -621,7 +644,7 @@ async function getCourseAnalytics(courseId: string, userId: string, courseName?:
   // 2. Study Plans -> Plan completion percentage
   var planCompletionPercent = 65;
   try {
-    var { data: plans } = await client.from("study_plans").select("id").eq("course_id", courseId).order("created_at", { ascending: false }).limit(1);
+    var { data: plans } = await client.from("study_plans").select("id").eq("course_id", courseId).order("exam_date", { ascending: false }).limit(1);
     if (plans && plans.length > 0) {
       var planId = plans[0].id;
       var { data: days } = await client.from("plan_days").select("done").eq("plan_id", planId);
@@ -939,7 +962,7 @@ async function enrichPastQuestions(courseId: string, courseName: string, topics:
     topicByName[String(topics[i].name).toLowerCase().trim()] = topics[i];
   }
   try {
-    var client = getClient();
+    var client = await getClient();
     var { data: preds } = await client.from("predictions").select("*").eq("course_id", courseId).order("created_at", { ascending: false }).limit(5);
     if (preds) {
       for (var p = 0; p < preds.length; p++) {
@@ -995,6 +1018,7 @@ async function enrichPastQuestions(courseId: string, courseName: string, topics:
 }
 
 export var sdb = {
+  getClient: getClient,
   insert: insert,
   batchInsert: batchInsert,
   getById: getById,

@@ -1,4 +1,5 @@
 import { llm } from "./gemini";
+import { sdb } from "../supabase-db";
 
 async function expandQueries(
   question: string,
@@ -15,7 +16,8 @@ async function expandQueries(
     "Return a JSON array of strings.\n\nQUESTION: " + question;
   var result: string[] = [question];
   try {
-    var expanded = await llm.generateJson(expandPrompt, 0.3, 1000, "expand_queries");
+    var expandedRes = await llm.generateJson(expandPrompt, 0.3, 1000, "expand_queries");
+    var expanded = expandedRes.value;
     if (Array.isArray(expanded)) {
       for (var i = 0; i < expanded.length; i++) {
         if (typeof expanded[i] === "string") {
@@ -34,7 +36,12 @@ function rrfFuse(resultLists: any[][], k: number): any[] {
     var list = resultLists[listIdx];
     for (var rank = 0; rank < list.length; rank++) {
       var item = list[rank];
-      var key = item.text;
+      var matPrefix = item.materialId ? item.materialId + ":" : "";
+      var itemIdentifier =
+        item.id !== undefined && item.id !== null && item.id !== ""
+          ? item.id
+          : (item.chunkIndex ?? "") + ":" + (item.text ?? "");
+      var key = matPrefix + itemIdentifier;
       if (scoreMap[key]) {
         scoreMap[key].score = scoreMap[key].score + 1 / (k + rank + 1);
       } else {
@@ -53,4 +60,21 @@ function rrfFuse(resultLists: any[][], k: number): any[] {
   });
 }
 
+export async function retrieveChunks(
+  question: string,
+  materialIds: string[],
+  topK: number = 8
+): Promise<any[]> {
+  if (!materialIds || materialIds.length === 0) {
+    return [];
+  }
+  var queryEmbedding = (await llm.embedTexts([question]))[0];
+  var searches = materialIds.map(function(id) {
+    return sdb.vectorSearch(id, queryEmbedding, 5);
+  });
+  var searchResults = await Promise.all(searches);
+  return rrfFuse(searchResults, 60).slice(0, topK);
+}
+
 export { expandQueries, rrfFuse };
+

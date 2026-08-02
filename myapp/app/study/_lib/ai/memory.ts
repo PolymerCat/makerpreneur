@@ -51,13 +51,14 @@ export async function extractMemory(
       "  ]\n" +
       "}";
 
-    var result: MemoryExtractResult = await llm.generateJson(
+    var resObj = await llm.generateJson(
       prompt,
       0.2,
       1500,
       "memory_extract",
       "gemini-3.5-flash-lite"
     );
+    var result: MemoryExtractResult = resObj.value;
 
     var newSummary = result.summary || currentSummary;
     var newFacts = result.facts || [];

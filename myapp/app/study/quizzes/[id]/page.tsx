@@ -18,31 +18,39 @@ export default function QuizTakePage(props: { params: Promise<{ id: string }> })
   var [quiz, setQuiz] = React.useState<Quiz | null>(null);
   var [questions, setQuestions] = React.useState<Question[]>([]);
   var [results, setResults] = React.useState<Record<string, { correct: boolean; feedback?: string }> | null>(null);
+  var [loading, setLoading] = React.useState(true);
 
   React.useEffect(function() {
     if (!quizId) {
+      setLoading(false);
       return;
     }
     (async function() {
-      var q = await db.getById("quizzes", quizId);
-      setQuiz(q);
-      var qs = (await db.listAll("questions", { quizId: quizId }, null)) as Question[];
-      var mappedQs = qs.map(function(question) {
-        if (question.kind === "mcq" || question.kind === "tf") {
-          var explanations = null;
-          if (question.rubric) {
-            try {
-              explanations = JSON.parse(question.rubric);
-            } catch (_e) {}
+      try {
+        var q = await db.getById("quizzes", quizId);
+        setQuiz(q);
+        var qs = (await db.listAll("questions", { quizId: quizId }, null)) as Question[];
+        var mappedQs = qs.map(function(question) {
+          if (question.kind === "mcq" || question.kind === "tf") {
+            var explanations = null;
+            if (question.rubric) {
+              try {
+                explanations = JSON.parse(question.rubric);
+              } catch (_e) {}
+            }
+            return {
+              ...question,
+              explanations: explanations
+            };
           }
-          return {
-            ...question,
-            explanations: explanations
-          };
-        }
-        return question;
-      });
-      setQuestions(mappedQs);
+          return question;
+        });
+        setQuestions(mappedQs);
+      } catch (err) {
+        console.error("Error loading quiz:", err);
+      } finally {
+        setLoading(false);
+      }
     })();
   }, [quizId]);
 
@@ -114,10 +122,21 @@ export default function QuizTakePage(props: { params: Promise<{ id: string }> })
     }
   }
 
-  if (!quiz) {
+  if (loading) {
     return (
       <AppShell>
         <p>Loading...</p>
+      </AppShell>
+    );
+  }
+
+  if (!quiz) {
+    return (
+      <AppShell>
+        <div className="p-6 text-center">
+          <p className="text-muted-foreground mb-4">Quiz not found or could not be loaded.</p>
+          <Link href="/study/quizzes" className="btn btn-secondary">Back to Quizzes</Link>
+        </div>
       </AppShell>
     );
   }

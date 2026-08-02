@@ -12,7 +12,8 @@ async function detectMetadata(
     "First page content:\n" + firstPageText.substring(0, 1200) + "\n\n" +
     "Return JSON: { title: string, year: number, semester: string, category: 'regular'|'exam_paper', courseCode: string }";
   try {
-    var result = await llm.generateJson(detectPrompt, 0.2, 1000, "detect");
+    var resObj = await llm.generateJson(detectPrompt, 0.2, 1000, "detect");
+    var result = resObj.value;
     return {
       title: result.title || fileName,
       year: (typeof result.year === "number" && result.year >= MIN_YEAR && result.year <= MAX_YEAR) ? result.year : new Date().getFullYear(),
