@@ -119,7 +119,7 @@ export function CoursePicker(): React.JSX.Element {
       <div className="course-picker-container">
         <div className="course-picker-empty" style={{ textAlign: "center", margin: "40px 0" }}>
           <p style={{ marginBottom: "16px", color: "var(--muted)", fontSize: "16px" }}>You must be signed in to create or select study subjects.</p>
-          <a href="/auth" className="btn btn-primary" style={{ display: "inline-block", padding: "10px 24px" }}>
+          <a href="/signin" className="btn btn-primary" style={{ display: "inline-block", padding: "10px 24px" }}>
             Sign In to Study Hub
           </a>
         </div>

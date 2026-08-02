@@ -1,19 +1,29 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { navItems } from "@/lib/sample-data";
 import { MainNav } from "./MainNav";
 import { Icon } from "@/components/ui/Icon";
+import { useSession } from "@/lib/auth-context";
 
 type AppShellProps = {
   children: React.ReactNode;
 };
 
 export function AppShell({ children }: AppShellProps) {
+  const router = useRouter();
+  const { supabase, user } = useSession();
   const [navOpen, setNavOpen] = useState(false);
 
   function closeNav() {
     setNavOpen(false);
+  }
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    router.push("/signin");
+    router.refresh();
   }
 
   return (
@@ -36,6 +46,13 @@ export function AppShell({ children }: AppShellProps) {
             <span>Campus workspace</span>
           </div>
         </div>
+
+        {user && (
+          <button className="topbar-logout" type="button" onClick={handleLogout} aria-label="Sign out">
+            <Icon name="ti-logout" />
+            <span>Sign out</span>
+          </button>
+        )}
       </header>
 
       <div className={`drawer-backdrop ${navOpen ? "open" : ""}`} onClick={closeNav} aria-hidden="true" />
