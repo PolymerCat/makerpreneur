@@ -767,9 +767,9 @@ input[type="range"] {
   font-size: 14px;
 }
 
-.row-card span,
-.media-card span,
-.contact-card span {
+.row-card span:not(.avatar):not(.badge),
+.media-card span:not(.avatar):not(.badge),
+.contact-card span:not(.avatar):not(.badge) {
   display: block;
   margin-top: 3px;
   color: var(--muted);
