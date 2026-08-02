@@ -1,6 +1,6 @@
 # Implementation Strategy — Study Plan & Class Schedule
 
-> Source: `sample/plan.md`
+> Source: `./plan.md`
 > Goal: a section where students manage their daily academic plans and schedule, integrated with Google Calendar, with in-app reminders.
 
 ---

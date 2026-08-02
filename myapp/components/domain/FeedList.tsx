@@ -11,7 +11,7 @@ export function FeedList({ items }: FeedListProps) {
   return (
     <div className="stack">
       {items.map((item) => (
-        <Card className="media-card justify-items-center" key={item.id}>
+        <Card className="media-card" key={item.id}>
           <Avatar icon={item.icon} size="md" className="justify-items-center" />
           <div>
             <strong>{item.title}</strong>
