@@ -16,7 +16,7 @@ export default function DashboardPage() {
         title="Good morning, Aqif"
         description="A compact campus dashboard for classes, reminders, points, and student activity."
         icon="ti-sparkles"
-        primaryAction={{ href: "/study", label: "Open study planner" }}
+        primaryAction={{ href: "/planner", label: "Open study planner" }}
       />
 
       <section className="metric-grid">

@@ -35,6 +35,7 @@ export type FeedItem = {
   body: string;
   tag: string;
   icon: string;
+  href: string;
 };
 
 export type Person = {

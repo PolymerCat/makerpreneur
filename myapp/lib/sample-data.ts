@@ -31,9 +31,9 @@ export const events: CampusEvent[] = [
 ];
 
 export const feedItems: FeedItem[] = [
-  { id: "feed-1", title: "AI Workshop starts soon", body: "Registration closes tonight for the 4:00 PM lab session.", tag: "Event", icon: "ti-robot" },
-  { id: "feed-2", title: "New marketplace listing", body: "Desk lamp available for RM20 near the hostel lobby.", tag: "Market", icon: "ti-shopping-cart" },
-  { id: "feed-3", title: "Study group forming", body: "Late night FIN345 revision group at Library L2.", tag: "Forum", icon: "ti-message-circle" },
+  { id: "feed-1", title: "AI Workshop starts soon", body: "Registration closes tonight for the 4:00 PM lab session.", tag: "Event", icon: "ti-robot", href:"" },
+  { id: "feed-2", title: "New marketplace listing", body: "Desk lamp available for RM20 near the hostel lobby.", tag: "Market", icon: "ti-shopping-cart", href:"" },
+  { id: "feed-3", title: "Study group forming", body: "Late night FIN345 revision group at Library L2.", tag: "Forum", icon: "ti-message-circle", href:"" },
 ];
 
 export const people: Person[] = [
@@ -43,9 +43,9 @@ export const people: Person[] = [
 ];
 
 export const campusServices: FeedItem[] = [
-  { id: "campus-1", title: "Shuttle Bus", body: "Route B arrives in 6 minutes.", tag: "Live", icon: "ti-bus" },
-  { id: "campus-2", title: "Library", body: "Central campus library is open until 10 PM.", tag: "Open", icon: "ti-books" },
-  { id: "campus-3", title: "Internet Maintenance", body: "Scheduled maintenance on 22 June, 8 PM to 10 PM.", tag: "Alert", icon: "ti-wifi-off" },
+  { id: "campus-1", title: "Shuttle Bus", body: "Route B arrives in 6 minutes.", tag: "Live", icon: "ti-bus" , href:"https://activeroute.activetelematics.my/locator/0dcabe20bdff4d0b8a0f8c3a768695c6"},
+  { id: "campus-2", title: "Library", body: "Central campus library is open until 10 PM.", tag: "Open", icon: "ti-books", href:"" },
+  { id: "campus-3", title: "Internet Maintenance", body: "Scheduled maintenance on 22 June, 8 PM to 10 PM.", tag: "Alert", icon: "ti-wifi-off", href:"" },
 ];
 
 export const sampleSubjects: Subject[] = [
