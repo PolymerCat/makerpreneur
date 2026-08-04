@@ -20,7 +20,7 @@ export const dashboardMetrics: Metric[] = [
 
 export const tasks: Task[] = [
   { id: "task-1", title: "FIN345 Assignment", due: "Due tomorrow", status: "Urgent", priority: "high" },
-  { id: "task-2", title: "Radiotherapy tutorial", due: "Today at 10:00 AM", status: "Next class", priority: "medium" },
+  { id: "task-2", title: "Software Testing Tutorial", due: "Today at 10:00 AM", status: "Next class", priority: "medium" },
   { id: "task-3", title: "Lab Report", due: "Due in 3 days", status: "Drafting", priority: "low" },
 ];
 

@@ -34,11 +34,11 @@ export default function DashboardPage() {
           <SectionHeader title="Today schedule" icon="ti-calendar-event" />
           <div className="timeline-row">
             <strong>10:00 AM</strong>
-            <span>Radiotherapy</span>
+            <span>Software Testing</span>
           </div>
           <div className="timeline-row">
             <strong>2:00 PM</strong>
-            <span>Financial Management</span>
+            <span>Islamic Finance</span>
           </div>
           <ButtonLink href="/planner" icon="ti-books">
             View planner
@@ -47,7 +47,7 @@ export default function DashboardPage() {
       </section>
 
       <section>
-        <SectionHeader title="Events today" description="Use the event components anywhere you need campus activities." icon="ti-confetti" />
+        <SectionHeader title="Events today" description=" " icon="ti-confetti" />
         <EventList events={events.slice(0, 2)} />
       </section>
     </AppShell>
