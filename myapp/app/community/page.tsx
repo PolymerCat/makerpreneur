@@ -32,15 +32,15 @@ export default function CommunityPage() {
         <div className="responsive-grid">
           <Card>
             <h3>Forum threads</h3>
-            <p>Use `FeedList` for discussion summaries and route to detail pages when ready.</p>
+            <p>Place where students can discuss topics and share ideas.</p>
           </Card>
           <Card>
             <h3>Marketplace listings</h3>
-            <p>Reuse `Card`, `Badge`, and `Avatar` for listing previews.</p>
+            <p>Place where students can buy and sell preloved items.</p>
           </Card>
           <Card>
             <h3>Communities</h3>
-            <p>Reuse `PeopleList` patterns for clubs, societies, and member actions.</p>
+            <p>Student Groups, Clubs, Organizations.</p>
           </Card>
         </div>
       </section>

@@ -18,13 +18,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        // Stale/invalid session (e.g. refresh_token_not_found). Drop the dead
+        // token locally and treat the user as signed out instead of surfacing
+        // AuthApiErrors on every refresh.
+        supabase.auth.signOut().catch(() => {});
+        setUser(null);
+      } else {
+        setUser(session?.user ?? null);
+      }
       setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      if (session) {
+        setUser(session.user ?? null);
+      }
     });
 
     return () => subscription.unsubscribe();

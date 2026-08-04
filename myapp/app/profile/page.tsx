@@ -64,10 +64,10 @@ export default function ProfilePage() {
               <label>Email</label>
               <p style={{ margin: "7px 0 0", fontSize: 14 }}>{user?.email ?? "—"}</p>
             </div>
-            <div>
+            {/* <div>
               <label>User ID</label>
               <code style={{ fontSize: 12, display: "block", marginTop: 7 }}>{user?.id ?? "—"}</code>
-            </div>
+            </div> */}
             <div>
               <label htmlFor="fullName">Full name</label>
               <input id="fullName" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Your display name" />
@@ -112,7 +112,7 @@ export default function ProfilePage() {
           </div>
         </Card>
 
-        <Card>
+        {/* <Card>
           <h3 style={{ margin: 0, fontSize: 15, display: "flex", alignItems: "center", gap: 6 }}>
             <Icon name="ti-database" /> Supabase profiles table
           </h3>
@@ -131,7 +131,7 @@ export default function ProfilePage() {
               Data is persisted via Supabase Auth + the profiles table. RLS policies grant access based on <code>auth.uid() = id</code>.
             </p>
           </div>
-        </Card>
+        </Card> */}
       </section>
     </AppShell>
   );

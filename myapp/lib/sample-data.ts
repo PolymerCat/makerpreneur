@@ -37,9 +37,9 @@ export const feedItems: FeedItem[] = [
 ];
 
 export const people: Person[] = [
-  { id: "person-1", name: "Sarah Ahmad", detail: "Medical Physics - Year 4", initials: "SA", actionLabel: "Connect" },
-  { id: "person-2", name: "Ali Hassan", detail: "Finance - Year 3", initials: "AH", actionLabel: "Follow back" },
-  { id: "person-3", name: "Mei Ling", detail: "Science - Year 1", initials: "ML", actionLabel: "Connect" },
+  { id: "person-1", name: "Peter Parker", detail: "Physics - Year 4", initials: "PP", actionLabel: "Connect" },
+  { id: "person-2", name: "Ahmad Albab", detail: "Property - Year 3", initials: "AA", actionLabel: "Follow back" },
+  { id: "person-3", name: "Giga Chad", detail: "Rizzics - Year 1", initials: "GC", actionLabel: "Connect" },
 ];
 
 export const campusServices: FeedItem[] = [

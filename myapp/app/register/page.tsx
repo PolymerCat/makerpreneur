@@ -43,7 +43,9 @@ export default function RegisterPage() {
       if (error) throw error;
 
       if (data.session) {
-        router.push("/");
+        const params = new URLSearchParams(window.location.search);
+        const next = params.get("next");
+        router.push(next && next.startsWith("/") && !next.startsWith("//") ? next : "/");
         router.refresh();
       } else {
         setInfo("Account created! Check your email to confirm your account before signing in.");
