@@ -200,7 +200,7 @@ export default function PapersPage() {
       </div>
 
       {activeTab === "predictor" && (
-        <div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
           <Card>
             <h3>Source Materials for Prediction</h3>
             <div className="tab-bar">
@@ -278,7 +278,7 @@ export default function PapersPage() {
       )}
 
       {activeTab === "saved" && (
-        <div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
           <Card>
             <h3>Generated Exam PDFs</h3>
             {savedGeneratedExams.length > 0 ? (

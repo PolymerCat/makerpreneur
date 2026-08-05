@@ -1620,7 +1620,9 @@ export default function ChatPage() {
             var memList = await db.listMemories(user.id, activeCourse.id);
             memories = memList.map(function(m: any) { return "[" + m.type + "] " + m.content; });
             memoriesCacheRef.current = { courseId: activeCourse.id, list: memories };
-          } catch (_mErr) {}
+          } catch (_mErr) {
+            console.warn("[CHAT] listMemories failed:", _mErr);
+          }
         }
       }
 
@@ -1737,6 +1739,9 @@ export default function ChatPage() {
               return t;
             });
           });
+          if (ev.tool === "save_memory") {
+            memoriesCacheRef.current = null;
+          }
         } else if (ev.type === "text") {
           if (!textStarted) {
             textStarted = true;

@@ -5,6 +5,7 @@ import { prompts } from "./_lib/ai/prompts";
 import { chunkPages } from "./_lib/ai/chunk";
 import { extractPages } from "./_lib/ai/extract";
 import { generatePdfFromExamJson } from "./_lib/ai/exam-pdf";
+import { looksGlobal } from "./_lib/ai/memory-merge";
 var DEFAULT_CARD_COUNT = 10;
 var DEFAULT_QUESTION_COUNT = 10;
 
@@ -198,6 +199,9 @@ export async function aiExtractMemory(
     var userId = authRes.data?.user?.id;
     if (!userId) return;
 
+    var { setServerClientGetter } = await import("./_lib/supabase-db");
+    setServerClientGetter(() => getSupabaseServerClient());
+
     var dbMod = await import("./_lib/supabase-db");
     var sdb = dbMod.sdb;
 
@@ -233,19 +237,17 @@ export async function aiSaveMemory(
     var userId = authRes.data?.user?.id;
     if (!userId) return false;
 
-    var embeddings = await llm.embedTexts([content]);
-    var embStr = "[" + embeddings[0].join(",") + "]";
+    var { setServerClientGetter } = await import("./_lib/supabase-db");
+    setServerClientGetter(() => getSupabaseServerClient());
 
-    var dbMod = await import("./_lib/supabase-db");
-    await dbMod.sdb.insert("memories", {
-      userId: userId,
-      courseId: courseId,
+    var memMod = await import("./_lib/ai/memory");
+    await memMod.saveMemoryFact(userId, {
+      courseId: looksGlobal(type, content) ? null : courseId,
       type: type,
-      tags: tags || [],
       content: content,
+      tags: tags || [],
       importance: 0.8,
-      source: "manual",
-      embedding: embStr
+      source: "manual"
     });
     return true;
   } catch (err) {
@@ -275,6 +277,9 @@ export async function aiRecordQuizResult(
     var authRes = await supabase.auth.getUser();
     var userId = authRes.data?.user?.id;
     if (!userId) return;
+
+    var { setServerClientGetter } = await import("./_lib/supabase-db");
+    setServerClientGetter(() => getSupabaseServerClient());
 
     var dbMod = await import("./_lib/supabase-db");
     var existingMemories = await dbMod.sdb.listMemories(userId, courseId || undefined);

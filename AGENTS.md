@@ -25,8 +25,9 @@ Run from `myapp/`:
 
 ## Database
 
-- Supabase (Postgres + pgvector + RLS). Migrations live in `myapp/app/study/_sql/0001-0010*.sql` and are applied manually in the Supabase SQL editor; there is no migration runner.
+- Supabase (Postgres + pgvector + RLS). Migrations live in `myapp/app/study/_sql/0001-0011*.sql` and are applied manually in the Supabase SQL editor; there is no migration runner.
 - `0009_subjects_ownership.sql` renamed `courses` to `subjects` with a `created_by` owner and owner-scoped RLS on every table. Code uses `subjects`; FK columns are still named `course_id` everywhere. Do not rename them.
+- `0011_memory_global_rls.sql` supersedes 0006's permissive "public all" policy on `memories`: global rows (course_id NULL, e.g. name/language preferences) are owned by `user_id` and must satisfy `user_id = auth.uid()`. Do not re-add a blanket `using (true)` policy on `memories`.
 - The server Supabase client (`myapp/lib/supabase/server.ts`) uses the anon key + session cookies, so RLS is enforced on all server reads/writes. Always go through `sdb` (`myapp/app/study/_lib/supabase-db.ts`); never use the service role key.
 
 ## Env

@@ -4,22 +4,19 @@ import { aiNameTopics, aiExtractPastQuestions } from "../actions";
 var supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 var supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
-var serverClientInstance: any = null;
 var serverClientGetter: (() => Promise<any>) | null = null;
-
-export function setServerClientInstance(client: any) {
-  serverClientInstance = client;
-}
 
 export function setServerClientGetter(fn: () => Promise<any>) {
   serverClientGetter = fn;
 }
 
+// ponytail: no module-level client singleton — concurrent requests would bleed
+// each other's auth context. Each getClient() call builds a fresh cookie-scoped
+// client via the getter (createServerSupabaseClient), which is cheap and
+// per-request correct. Upgrade path: AsyncLocalStorage if client construction
+// ever becomes measurably expensive.
 async function getClient() {
   if (typeof window === "undefined") {
-    if (serverClientInstance) {
-      return serverClientInstance;
-    }
     if (serverClientGetter) {
       try {
         return await serverClientGetter();
@@ -436,7 +433,8 @@ async function memorySearch(
   userId: string,
   courseId: string | null,
   queryEmbedding: number[],
-  limit: number = 8
+  limit: number = 8,
+  threshold: number = 0.3
 ) {
   var client = await getClient();
   var embedding = "[" + queryEmbedding.join(",") + "]";
@@ -445,7 +443,7 @@ async function memorySearch(
     match_user_id: userId,
     match_course_id: courseId,
     match_count: limit,
-    match_threshold: 0.3
+    match_threshold: threshold
   });
   if (result.error) {
     console.error("memorySearch error:", result.error);

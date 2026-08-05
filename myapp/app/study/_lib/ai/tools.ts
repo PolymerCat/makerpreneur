@@ -164,6 +164,51 @@ registerTool({
   }
 });
 
+/* 2b. list_memories */
+registerTool({
+  name: "list_memories",
+  description: "List the student's stored memories (name, preferences, goals, weaknesses, facts) newest-first. Use this when the student asks about their own details (e.g. their name, language, preferences) or when no relevant entry appears in STUDENT MEMORIES. Optionally filter by type.",
+  parameters: {
+    type: "OBJECT",
+    properties: {
+      type: {
+        type: "STRING",
+        enum: ["fact", "preference", "goal", "weakness"],
+        description: "Optional filter: only return memories of this type"
+      }
+    },
+    required: []
+  },
+  run: async (args, ctx) => {
+    try {
+      const typeFilter = args.type ? String(args.type).trim() : "";
+      let memories = await sdb.listMemories(ctx.userId, ctx.subjectId || undefined);
+      if (typeFilter) {
+        memories = memories.filter(function(m) {
+          return String(m.type || "") === typeFilter;
+        });
+      }
+      memories = memories.filter(function(m) {
+        return String(m.type || "") !== "episode";
+      });
+
+      if (memories.length === 0) {
+        return { ok: true, result: "No memories found." };
+      }
+
+      const formatted = memories
+        .map(function(m) {
+          return `- [${m.type}] ${m.content} (importance: ${m.importance || 0.5})`;
+        })
+        .join("\n");
+
+      return { ok: true, result: formatted };
+    } catch (err: any) {
+      return { ok: false, error: "list_memories error: " + (err.message || String(err)) };
+    }
+  }
+});
+
 /* 3. save_memory */
 registerTool({
   name: "save_memory",

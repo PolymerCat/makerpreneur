@@ -61,6 +61,7 @@ vi.mock("../supabase-db", () => ({
     getClient: vi.fn(async () => mockSupabaseClient),
     vectorSearch: vi.fn(),
     memorySearch: vi.fn(),
+    listMemories: vi.fn(),
     insert: vi.fn(),
     batchInsert: vi.fn(),
     getCourseAnalytics: vi.fn()
@@ -99,10 +100,11 @@ describe("Agent Tools Comprehensive Stress Tests", () => {
     vi.clearAllMocks();
   });
 
-  it("should have all 10 tools registered", () => {
+  it("should have all 11 tools registered", () => {
     const expectedTools = [
       "search_material",
       "search_memory",
+      "list_memories",
       "save_memory",
       "generate_flashcards",
       "generate_quiz",
@@ -198,6 +200,48 @@ describe("Agent Tools Comprehensive Stress Tests", () => {
       expect(res.ok).toBe(true);
       if (res.ok) {
         expect(res.result).toBe("No matching memories found.");
+      }
+    });
+  });
+
+  /* 2b. list_memories */
+  describe("2b. list_memories tool", () => {
+    it("returns formatted memories newest-first", async () => {
+      vi.mocked(sdb.listMemories).mockResolvedValueOnce([
+        { type: "preference", content: "Preferred name: bibi", importance: 0.8 },
+        { type: "weakness", content: "Struggles with calculus", importance: 0.7 },
+        { type: "episode", content: "covered 5G protocols", importance: 0.5 }
+      ]);
+
+      const res = await executeTool("list_memories", {}, defaultCtx);
+      expect(res.ok).toBe(true);
+      if (res.ok) {
+        expect(res.result).toContain("[preference] Preferred name: bibi");
+        expect(res.result).toContain("[weakness] Struggles with calculus");
+        expect(res.result).not.toContain("episode");
+      }
+    });
+
+    it("filters by type when requested", async () => {
+      vi.mocked(sdb.listMemories).mockResolvedValueOnce([
+        { type: "preference", content: "Preferred name: bibi", importance: 0.8 },
+        { type: "weakness", content: "Struggles with calculus", importance: 0.7 }
+      ]);
+
+      const res = await executeTool("list_memories", { type: "preference" }, defaultCtx);
+      expect(res.ok).toBe(true);
+      if (res.ok) {
+        expect(res.result).toContain("[preference] Preferred name: bibi");
+        expect(res.result).not.toContain("Struggles with calculus");
+      }
+    });
+
+    it("returns fallback message when no memories found", async () => {
+      vi.mocked(sdb.listMemories).mockResolvedValueOnce([]);
+      const res = await executeTool("list_memories", {}, defaultCtx);
+      expect(res.ok).toBe(true);
+      if (res.ok) {
+        expect(res.result).toBe("No memories found.");
       }
     });
   });

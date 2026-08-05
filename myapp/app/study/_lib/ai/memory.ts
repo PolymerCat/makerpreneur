@@ -1,17 +1,84 @@
 import { llm } from "./gemini";
 import { sdb } from "../supabase-db";
+import { decideMemoryMerge } from "./memory-merge";
 
 export type ExtractedFact = {
   type: "fact" | "preference" | "goal" | "weakness";
   content: string;
   tags: string[];
   importance: number;
+  global?: boolean;
 };
 
 export type MemoryExtractResult = {
   summary: string;
   facts: ExtractedFact[];
 };
+
+export type SaveMemoryFactOptions = {
+  courseId: string | null;
+  conversationId?: string | null;
+  type: string;
+  content: string;
+  tags?: string[];
+  importance?: number;
+  source?: string;
+};
+
+export async function saveMemoryFact(
+  userId: string,
+  opts: SaveMemoryFactOptions
+): Promise<{ action: "insert" | "replace"; id: string | null }> {
+  var embeddings = await llm.embedTexts([opts.content]);
+  var embStr = "[" + embeddings[0].join(",") + "]";
+
+  // Global search (no course filter) so a fact saved in any subject can
+  // replace an older conflicting version saved elsewhere.
+  var matches = await sdb.memorySearch(userId, null, embeddings[0], 8, 0.45);
+  var best = null;
+  for (var i = 0; i < matches.length; i++) {
+    if (matches[i].id && matches[i].type !== "episode") {
+      best = matches[i];
+      break;
+    }
+  }
+
+  var decision = decideMemoryMerge(
+    opts.type,
+    opts.content,
+    best
+      ? { type: best.type, content: best.content, similarity: best.similarity }
+      : null
+  );
+
+  if (decision.action === "replace" && best) {
+    await sdb.update("memories", best.id, {
+      courseId: opts.courseId,
+      conversationId: opts.conversationId || null,
+      type: opts.type,
+      tags: opts.tags || [],
+      content: opts.content,
+      importance: opts.importance ?? 0.5,
+      source: opts.source || "chat",
+      embedding: embStr,
+      updatedAt: new Date().toISOString()
+    });
+    return { action: "replace", id: best.id };
+  }
+
+  var row = await sdb.insert("memories", {
+    userId: userId,
+    courseId: opts.courseId,
+    conversationId: opts.conversationId || null,
+    type: opts.type,
+    tags: opts.tags || [],
+    content: opts.content,
+    importance: opts.importance ?? 0.5,
+    source: opts.source || "chat",
+    embedding: embStr
+  });
+  return { action: "insert", id: row.id };
+}
 
 export async function extractMemory(
   userId: string,
@@ -24,7 +91,7 @@ export async function extractMemory(
 ): Promise<MemoryExtractResult> {
   try {
     var existingText = existingMemories
-      .slice(0, 5)
+      .slice(0, 50)
       .map(function(m) { return "[" + m.type + "] " + m.content; })
       .join("\n");
 
@@ -40,14 +107,18 @@ export async function extractMemory(
       "Assistant: " + lastReply + "\n\n" +
       "INSTRUCTIONS:\n" +
       "1. Update the rolling summary of the conversation (concise, key topics covered, max 150 words).\n" +
-      "2. Extract any NEW durable facts about the student (skip small talk, greetings, or info already covered in existing memories).\n" +
-      "   Valid types: 'fact', 'preference', 'goal', 'weakness'.\n" +
-      "   Include relevant tags (e.g. ['5g', 'telecom']) and importance (0.1 to 1.0).\n\n" +
+      "2. Extract ONLY durable facts explicitly stated BY THE STUDENT about themselves.\n" +
+      "   - NEVER extract information from the Assistant's reply; the assistant can be wrong.\n" +
+      "   - Skip if the student only asked a question, greeted, or made small talk.\n" +
+      "   - If the student states a new value for something already stored (e.g. a new name or a changed preference), extract the NEW value so it replaces the old one.\n" +
+      "   - Valid types: 'fact', 'preference', 'goal', 'weakness'.\n" +
+      "   - 'global': true if the fact applies regardless of subject (name, language, personal background, general preferences); false if subject-specific (e.g. a weakness in a topic, a goal for this exam).\n" +
+      "   - Include relevant tags (e.g. ['5g', 'telecom']) and importance (0.1 to 1.0).\n\n" +
       "Return ONLY a JSON object formatted as:\n" +
       "{\n" +
       '  "summary": "updated conversation summary",\n' +
       '  "facts": [\n' +
-      '    { "type": "weakness", "content": "Struggles with eigenvalues", "tags": ["math"], "importance": 0.8 }\n' +
+      '    { "type": "preference", "content": "Student prefers to be called bobo", "tags": ["name"], "importance": 0.9, "global": true }\n' +
       "  ]\n" +
       "}";
 
@@ -115,8 +186,9 @@ export async function extractMemory(
       }
     }
 
-    // 3. Process new facts (dedup & embed)
-    var toInsert: ExtractedFact[] = [];
+    // 3. Save new facts (dedup exact copies; semantic upserts replace older
+    // conflicting versions of the same fact instead of piling up duplicates)
+    var saved: ExtractedFact[] = [];
     for (var i = 0; i < newFacts.length; i++) {
       var f = newFacts[i];
       if (!f.content || !f.type) continue;
@@ -124,30 +196,17 @@ export async function extractMemory(
       var isDuplicate = existingMemories.some(function(em) {
         return em.content.trim().toLowerCase() === cleanContent;
       });
-      if (!isDuplicate) {
-        toInsert.push(f);
-      }
-    }
-
-    if (toInsert.length > 0) {
-      var contentsToEmbed = toInsert.map(function(f) { return f.content; });
-      var embeddings = await llm.embedTexts(contentsToEmbed);
-
-      for (var j = 0; j < toInsert.length; j++) {
-        var fact = toInsert[j];
-        var embStr = "[" + embeddings[j].join(",") + "]";
-        await sdb.insert("memories", {
-          userId: userId,
-          courseId: courseId,
-          conversationId: conversationId,
-          type: fact.type,
-          tags: fact.tags || [],
-          content: fact.content,
-          importance: fact.importance || 0.5,
-          source: "chat",
-          embedding: embStr
-        });
-      }
+      if (isDuplicate) continue;
+      await saveMemoryFact(userId, {
+        courseId: f.global ? null : courseId,
+        conversationId: conversationId,
+        type: f.type,
+        content: f.content.trim(),
+        tags: f.tags || [],
+        importance: f.importance || 0.5,
+        source: "chat"
+      });
+      saved.push(f);
     }
 
     // 4. Cap memories at 200 rows per course to prevent bloat
@@ -155,7 +214,7 @@ export async function extractMemory(
       console.error("[MEMORY] Cap enforcement error:", err);
     });
 
-    return { summary: newSummary, facts: toInsert };
+    return { summary: newSummary, facts: saved };
   } catch (err) {
     console.error("[MEMORY] extractMemory error (swallowed to protect chat):", err);
     return { summary: currentSummary, facts: [] };

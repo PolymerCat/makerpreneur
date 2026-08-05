@@ -4,14 +4,14 @@ import { logLlmCall } from "../../_lib/ai/logger";
 import { downloadImageParts, GeminiImagePart } from "../../_lib/chat-images";
 import { aiChat } from "../../actions";
 import { retrieveChunks } from "../../_lib/ai/retrieve";
-import { sdb, setServerClientGetter, setServerClientInstance } from "../../_lib/supabase-db";
+import { sdb, setServerClientGetter } from "../../_lib/supabase-db";
 
 async function buildInjectedContext(
-  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
   userId: string,
   courseId: string
 ): Promise<string> {
   try {
+    var supabase = await createServerSupabaseClient();
     var blocks: string[] = [];
 
     if (courseId) {
@@ -38,13 +38,15 @@ async function buildInjectedContext(
       }
     }
 
+    // Inject ALL memory types (fact, preference, goal, weakness) newest-first so
+    // personal details reach the agent even when the client body param fails.
     var memories = await sdb.listMemories(userId, courseId || undefined);
-    var weaknesses = memories
-      .filter(function(m) { return String(m.type || "").indexOf("weakness") !== -1; })
-      .slice(0, 3)
-      .map(function(m) { return "- " + m.content; });
-    if (weaknesses.length > 0) {
-      blocks.push("Known weaknesses:\n" + weaknesses.join("\n"));
+    var memoryLines = memories
+      .filter(function(m) { return String(m.type || "") !== "episode"; })
+      .slice(0, 15)
+      .map(function(m) { return "- [" + m.type + "] " + m.content; });
+    if (memoryLines.length > 0) {
+      blocks.push("Student memories:\n" + memoryLines.join("\n"));
     }
 
     return blocks.join("\n");
@@ -99,7 +101,6 @@ export async function POST(request: Request) {
     let imageParts: GeminiImagePart[] = [];
     try {
       const supabase = await createServerSupabaseClient();
-      setServerClientInstance(supabase);
       const authRes = await supabase.auth.getUser();
       userId = authRes.data?.user?.id || "";
 
@@ -114,9 +115,7 @@ export async function POST(request: Request) {
       ? memories.join("\n")
       : String(memories || "");
 
-    const supabase = await createServerSupabaseClient();
-    setServerClientInstance(supabase);
-    const injectedContext = await buildInjectedContext(supabase, userId, courseId);
+    const injectedContext = await buildInjectedContext(userId, courseId);
     const summaryBlock = summary ? "Summary: " + summary : "";
 
     const encoder = new TextEncoder();
