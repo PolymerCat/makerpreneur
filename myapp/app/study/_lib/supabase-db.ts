@@ -45,6 +45,9 @@ var COLUMN_MAP: Record<string, Record<string, string>> = {
   schedule_blocks: { startsAt: "starts_at", endsAt: "ends_at" },
   predictions:  { courseId: "course_id", createdAt: "created_at", freqJson: "freq_json", questionsJson: "questions_json", studiedIds: "studied_ids" },
   generated_exams: { courseId: "course_id", courseCode: "course_code", fileUrl: "file_url", questionsJson: "questions_json", createdAt: "created_at" },
+  faculties: { createdBy: "created_by", createdAt: "created_at" },
+  repository_courses: { facultyId: "faculty_id", courseCode: "course_code", courseName: "course_name", createdBy: "created_by", createdAt: "created_at" },
+  repository_papers: { courseId: "course_id", fileUrl: "file_url", fileType: "file_type", fileSize: "file_size", extractedText: "extracted_text", uploadedBy: "uploaded_by", uploadedByName: "uploaded_by_name", createdAt: "created_at" },
   search_index: { materialId: "material_id", indexData: "index_data" },
   conversations: { userId: "user_id", createdAt: "created_at", updatedAt: "updated_at" },
   messages: { conversationId: "conversation_id", createdAt: "created_at" },
@@ -602,6 +605,48 @@ function getPublicUrl(bucket: string, path: string): string {
   return data.publicUrl;
 }
 
+async function deleteStorageObject(bucket: string, path: string): Promise<void> {
+  var client = await getClient();
+  var { error } = await client.storage.from(bucket).remove([path]);
+  if (error) {
+    throw new Error("deleteStorageObject: " + error.message);
+  }
+}
+
+/* --- Exam Paper Repository helpers --- */
+
+async function listRepositoryPapers(): Promise<any[]> {
+  var client = await getClient();
+  var result = await client
+    .from("repository_papers")
+    .select("*, repository_courses(faculty_id, course_code, course_name)")
+    .order("created_at", { ascending: false });
+  if (result.error) {
+    throw new Error("listRepositoryPapers: " + result.error.message);
+  }
+  return (result.data || []).map(function(row: any) {
+    var course = row.repository_courses || {};
+    return {
+      id: row.id,
+      courseId: row.course_id,
+      title: row.title,
+      year: row.year,
+      semester: row.semester,
+      fileUrl: row.file_url,
+      fileType: row.file_type,
+      fileSize: row.file_size,
+      tags: row.tags || [],
+      extractedText: row.extracted_text,
+      uploadedBy: row.uploaded_by,
+      uploadedByName: row.uploaded_by_name,
+      createdAt: row.created_at,
+      facultyId: course.faculty_id,
+      courseCode: course.course_code,
+      courseName: course.course_name
+    };
+  });
+}
+
 async function getCourseAnalytics(courseId: string, userId: string, courseName?: string): Promise<any> {
   var client = await getClient();
   var now = new Date();
@@ -1047,6 +1092,8 @@ export var sdb = {
   cacheChunks: cacheChunks,
   uploadFile: uploadFile,
   getPublicUrl: getPublicUrl,
+  deleteStorageObject: deleteStorageObject,
+  listRepositoryPapers: listRepositoryPapers,
   getCourseAnalytics: getCourseAnalytics
 };
 

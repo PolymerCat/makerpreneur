@@ -9,6 +9,7 @@ export const navItems: NavItem[] = [
   { href: "/campus", label: "Campus", icon: "ti-building" },
   { href: "/profile", label: "Profile", icon: "ti-user" },
   { href: "/planner", label: "Planner", icon: "ti-calendar" },
+  { href: "/repository", label: "Exam Paper Repository", icon: "ti-files" },
 ];
 
 export const dashboardMetrics: Metric[] = [
