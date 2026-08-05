@@ -8,7 +8,7 @@
 -- ============================================================================
 -- 1. Storage bucket (public read; authenticated upload)
 -- ============================================================================
-
+--dummy
 insert into storage.buckets (id, name, public)
   values ('repository-papers', 'repository-papers', true)
   on conflict (id) do nothing;
