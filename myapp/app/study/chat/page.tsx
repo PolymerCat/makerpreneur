@@ -1902,7 +1902,7 @@ export default function ChatPage() {
           <div className="chat-auth-banner">
             <Icon name="ti-user" />
             <span>Sign in to save conversations across sessions.</span>
-            <a href="/auth" className="chat-auth-link">Sign in</a>
+            <a href="/signin" className="chat-auth-link">Sign in</a>
           </div>
         ) : null}
 

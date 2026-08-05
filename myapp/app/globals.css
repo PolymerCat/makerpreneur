@@ -169,6 +169,34 @@ input[type="range"] {
   box-shadow: 3px 3px 0px var(--line);
 }
 
+.topbar-logout {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 9px 16px;
+  box-shadow: 2px 2px 0px var(--line);
+  transition: all 0.2s ease;
+}
+
+.topbar-logout:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0px var(--line);
+}
+
+.topbar-logout .ti {
+  font-size: 18px;
+}
+
 .content-shell {
   display: flex;
   flex-direction: column;
@@ -746,6 +774,17 @@ input[type="range"] {
   font-size: 12px;
 }
 
+.media-card-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.media-card-link:hover .card {
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
 .row-card,
 .media-card,
 .contact-card {
@@ -767,9 +806,9 @@ input[type="range"] {
   font-size: 14px;
 }
 
-.row-card span,
-.media-card span,
-.contact-card span {
+.row-card span:not(.avatar):not(.badge),
+.media-card span:not(.avatar):not(.badge),
+.contact-card span:not(.avatar):not(.badge) {
   display: block;
   margin-top: 3px;
   color: var(--muted);
@@ -977,22 +1016,23 @@ input[type="range"] {
   margin-top: 7px;
 }
 
+.auth-switch {
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.auth-switch a {
+  color: var(--brand);
+  font-weight: 800;
+}
+
+.auth-switch a:hover {
+  text-decoration: underline;
+}
+
 /* ============ Planner / Calendar ============ */
-
-.command-page {
-  display: flex;
-  max-width: 1560px;
-  margin: 0 auto;
-  flex-direction: column;
-  gap: 20px;
-  padding: 24px 32px;
-}
-
-@media (max-width: 620px) {
-  .command-page {
-    padding: 16px;
-  }
-}
 
 .planner-toolbar {
   display: flex;
@@ -1157,6 +1197,14 @@ input[type="range"] {
   .content-shell {
     padding: 16px;
     padding-top: calc(16px + env(safe-area-inset-top));
+  }
+
+  .topbar-logout span {
+    display: none;
+  }
+
+  .topbar-logout {
+    padding: 9px;
   }
 
   .page-hero {

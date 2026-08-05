@@ -2,7 +2,7 @@ import type { CalendarEvent, CampusEvent, FeedItem, Metric, NavItem, Person, Res
 
 // Temporary seed data. Later, replace these exports with Supabase queries that return the same shapes.
 export const navItems: NavItem[] = [
-  { href: "/home", label: "Home", icon: "ti-home" },
+  { href: "/", label: "Home", icon: "ti-home" },
   { href: "/community", label: "Community", icon: "ti-users" },
   { href: "/study", label: "Study", icon: "ti-school" },
   { href: "/events", label: "MyCSD", icon: "ti-confetti" },
@@ -20,7 +20,7 @@ export const dashboardMetrics: Metric[] = [
 
 export const tasks: Task[] = [
   { id: "task-1", title: "FIN345 Assignment", due: "Due tomorrow", status: "Urgent", priority: "high" },
-  { id: "task-2", title: "Radiotherapy tutorial", due: "Today at 10:00 AM", status: "Next class", priority: "medium" },
+  { id: "task-2", title: "Software Testing Tutorial", due: "Today at 10:00 AM", status: "Next class", priority: "medium" },
   { id: "task-3", title: "Lab Report", due: "Due in 3 days", status: "Drafting", priority: "low" },
 ];
 
@@ -31,21 +31,21 @@ export const events: CampusEvent[] = [
 ];
 
 export const feedItems: FeedItem[] = [
-  { id: "feed-1", title: "AI Workshop starts soon", body: "Registration closes tonight for the 4:00 PM lab session.", tag: "Event", icon: "ti-robot" },
-  { id: "feed-2", title: "New marketplace listing", body: "Desk lamp available for RM20 near the hostel lobby.", tag: "Market", icon: "ti-shopping-cart" },
-  { id: "feed-3", title: "Study group forming", body: "Late night FIN345 revision group at Library L2.", tag: "Forum", icon: "ti-message-circle" },
+  { id: "feed-1", title: "AI Workshop starts soon", body: "Registration closes tonight for the 4:00 PM lab session.", tag: "Event", icon: "ti-robot", href:"" },
+  { id: "feed-2", title: "New marketplace listing", body: "Desk lamp available for RM20 near the hostel lobby.", tag: "Market", icon: "ti-shopping-cart", href:"" },
+  { id: "feed-3", title: "Study group forming", body: "Late night FIN345 revision group at Library L2.", tag: "Forum", icon: "ti-message-circle", href:"" },
 ];
 
 export const people: Person[] = [
-  { id: "person-1", name: "Sarah Ahmad", detail: "Medical Physics - Year 4", initials: "SA", actionLabel: "Connect" },
-  { id: "person-2", name: "Ali Hassan", detail: "Finance - Year 3", initials: "AH", actionLabel: "Follow back" },
-  { id: "person-3", name: "Mei Ling", detail: "Science - Year 1", initials: "ML", actionLabel: "Connect" },
+  { id: "person-1", name: "Peter Parker", detail: "Physics - Year 4", initials: "PP", actionLabel: "Connect" },
+  { id: "person-2", name: "Ahmad Albab", detail: "Property - Year 3", initials: "AA", actionLabel: "Follow back" },
+  { id: "person-3", name: "Giga Chad", detail: "Rizzics - Year 1", initials: "GC", actionLabel: "Connect" },
 ];
 
 export const campusServices: FeedItem[] = [
-  { id: "campus-1", title: "Shuttle Bus", body: "Route B arrives in 6 minutes.", tag: "Live", icon: "ti-bus" },
-  { id: "campus-2", title: "Library", body: "Central campus library is open until 10 PM.", tag: "Open", icon: "ti-books" },
-  { id: "campus-3", title: "Internet Maintenance", body: "Scheduled maintenance on 22 June, 8 PM to 10 PM.", tag: "Alert", icon: "ti-wifi-off" },
+  { id: "campus-1", title: "Shuttle Bus", body: "Route B arrives in 6 minutes.", tag: "Live", icon: "ti-bus" , href:"https://activeroute.activetelematics.my/locator/0dcabe20bdff4d0b8a0f8c3a768695c6"},
+  { id: "campus-2", title: "Library", body: "Central campus library is open until 10 PM.", tag: "Open", icon: "ti-books", href:"" },
+  { id: "campus-3", title: "Internet Maintenance", body: "Scheduled maintenance on 22 June, 8 PM to 10 PM.", tag: "Alert", icon: "ti-wifi-off", href:"" },
 ];
 
 export const sampleSubjects: Subject[] = [

@@ -7,29 +7,51 @@ import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
 import { useSession } from "@/lib/auth-context";
 
-export default function SignInPage() {
+export default function RegisterPage() {
   const router = useRouter();
   const { supabase } = useSession();
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setInfo("");
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+    if (password !== confirm) {
+      setError("Passwords do not match.");
+      return;
+    }
+
     setBusy(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { name: fullName } },
+      });
       if (error) throw error;
 
-      const params = new URLSearchParams(window.location.search);
-      const next = params.get("next");
-      router.push(next && next.startsWith("/") && !next.startsWith("//") ? next : "/");
-      router.refresh();
+      if (data.session) {
+        const params = new URLSearchParams(window.location.search);
+        const next = params.get("next");
+        router.push(next && next.startsWith("/") && !next.startsWith("//") ? next : "/");
+        router.refresh();
+      } else {
+        setInfo("Account created! Check your email to confirm your account before signing in.");
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign in failed. Please try again.");
+      setError(err instanceof Error ? err.message : "Registration failed. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -42,15 +64,22 @@ export default function SignInPage() {
           <img src="/logo-crest.webp" alt="USM Crest Logo" className="brand-mark" style={{ objectFit: "contain", padding: "2px", background: "#fff" }} />
           <div>
             <strong>StudentHub USM</strong>
-            <span>Campus workspace</span>
+            <span>Create your account</span>
           </div>
         </div>
 
-        <div style={{ display: "flex", justifyContent: "center", padding: "12px 0", borderBottom: "2px solid var(--line)", marginBottom: "20px" }}>
-          <img src="/logo-apex.webp" alt="USM APEX Branding" style={{ height: "48px", objectFit: "contain" }} />
-        </div>
-
         <form className="form-stack" onSubmit={handleSubmit}>
+          <label>
+            Full name
+            <input
+              type="text"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="e.g. Julita Aisyah"
+              autoComplete="name"
+              required
+            />
+          </label>
           <label>
             Email
             <input
@@ -68,8 +97,19 @@ export default function SignInPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
-              autoComplete="current-password"
+              placeholder="At least 6 characters"
+              autoComplete="new-password"
+              required
+            />
+          </label>
+          <label>
+            Confirm password
+            <input
+              type="password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              placeholder="Re-enter your password"
+              autoComplete="new-password"
               required
             />
           </label>
@@ -77,15 +117,18 @@ export default function SignInPage() {
           {error && (
             <p style={{ color: "var(--warning)", fontSize: 13, margin: 0 }}>{error}</p>
           )}
+          {info && (
+            <p style={{ color: "var(--success)", fontSize: 13, margin: 0 }}>{info}</p>
+          )}
 
           <button className="secondary-button" type="submit" disabled={busy} style={{ opacity: busy ? 0.6 : 1, border: 0, cursor: busy ? "not-allowed" : "pointer" }}>
-            <Icon name="ti-login" />
-            {busy ? "Signing in..." : "Sign in"}
+            <Icon name="ti-user-plus" />
+            {busy ? "Creating account..." : "Create account"}
           </button>
         </form>
 
         <p className="auth-switch">
-          Don&apos;t have an account? <Link href="/register">Create one</Link>
+          Already have an account? <Link href="/signin">Sign in</Link>
         </p>
       </Card>
     </main>
