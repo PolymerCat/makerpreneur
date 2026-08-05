@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHero } from "@/components/layout/PageHero";
 import { Card } from "@/components/ui/Card";
@@ -11,11 +11,12 @@ import { ReminderBanner } from "@/components/domain/ReminderBanner";
 import { GoogleConnectButton } from "@/components/domain/GoogleConnectButton";
 import { plannerEvents } from "@/lib/sample-data";
 import type { CalendarEvent } from "@/lib/types";
+import { db } from "@/app/study/_lib/db";
+import { useSession } from "@/lib/auth-context";
 
 const WEEKDAY_KEYS = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
 
-// Expand recurring (RRULE) events into concrete instances inside the visible month.
-function expandEvents(base: CalendarEvent[], month: Date): CalendarEvent[] {
+export function expandEvents(base: CalendarEvent[], month: Date): CalendarEvent[] {
   const year = month.getFullYear();
   const monthIndex = month.getMonth();
   const monthStart = new Date(year, monthIndex, 1);
@@ -52,11 +53,55 @@ function expandEvents(base: CalendarEvent[], month: Date): CalendarEvent[] {
 }
 
 export default function PlannerPage() {
+  const { user } = useSession();
+  const userId = user?.id || "";
+
   const [baseEvents, setBaseEvents] = useState<CalendarEvent[]>(plannerEvents);
-  const [month, setMonth] = useState(() => new Date(2026, 5, 1));
+  const [month, setMonth] = useState(() => new Date());
   const [showForm, setShowForm] = useState(false);
   const [editTarget, setEditTarget] = useState<CalendarEvent | null>(null);
   const [formDate, setFormDate] = useState<Date | undefined>(undefined);
+  const [loading, setLoading] = useState(true);
+
+  async function loadUserEvents() {
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
+    try {
+      const data: CalendarEvent[] = await db.listAll("planner_events", { userId }, null);
+      if (data && data.length > 0) {
+        setBaseEvents(data);
+      } else {
+        // If user has no events yet, seed with sample events and save them for the user
+        const seedEvents = plannerEvents.map((ev) => ({ ...ev, userId }));
+        for (const se of seedEvents) {
+          try {
+            await db.insert("planner_events", {
+              userId,
+              title: se.title,
+              description: se.description || "",
+              location: se.location || "",
+              event_type: se.event_type,
+              start_time: se.start_time,
+              end_time: se.end_time,
+              rrule: se.rrule || null,
+              google_event_id: se.google_event_id || null,
+            });
+          } catch (_e) {}
+        }
+        const fresh: CalendarEvent[] = await db.listAll("planner_events", { userId }, null);
+        if (fresh && fresh.length > 0) setBaseEvents(fresh);
+      }
+    } catch (err) {
+      console.error("[PLANNER] Failed to load user events:", err);
+    }
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    loadUserEvents();
+  }, [userId]);
 
   const monthEvents = useMemo(() => expandEvents(baseEvents, month), [baseEvents, month]);
   const reminderEvent = monthEvents.find((ev) => ev.event_type === "class" || ev.event_type === "study") ?? monthEvents[0] ?? null;
@@ -72,17 +117,57 @@ export default function PlannerPage() {
     setShowForm(true);
   }
 
-  function handleSave(data: Omit<CalendarEvent, "id" | "google_event_id">) {
+  async function handleSave(data: Omit<CalendarEvent, "id" | "google_event_id">) {
+    if (!userId) return;
+
     if (editTarget) {
-      setBaseEvents((prev) => prev.map((ev) => (ev.id === editTarget.id ? { ...ev, ...data } : ev)));
+      // Extract original UUID in case editTarget.id has an expanded RRULE date suffix
+      const realId = editTarget.id.split("-")[0];
+      try {
+        await db.update("planner_events", realId, {
+          title: data.title,
+          description: data.description || "",
+          location: data.location || "",
+          event_type: data.event_type,
+          start_time: data.start_time,
+          end_time: data.end_time,
+          rrule: data.rrule || null,
+        });
+      } catch (err) {
+        console.error("[PLANNER] update error:", err);
+      }
     } else {
-      setBaseEvents((prev) => [...prev, { ...data, id: crypto.randomUUID(), google_event_id: null }]);
+      try {
+        await db.insert("planner_events", {
+          userId,
+          title: data.title,
+          description: data.description || "",
+          location: data.location || "",
+          event_type: data.event_type,
+          start_time: data.start_time,
+          end_time: data.end_time,
+          rrule: data.rrule || null,
+          google_event_id: null,
+        });
+      } catch (err) {
+        console.error("[PLANNER] insert error:", err);
+      }
     }
+
     setShowForm(false);
+    await loadUserEvents();
   }
 
-  function handleDelete(id: string) {
-    setBaseEvents((prev) => prev.filter((ev) => ev.id !== id));
+  async function handleDelete(id: string) {
+    if (!userId) return;
+    // Extract base UUID (if expanded instance id like uuid-2026-06-01)
+    const baseId = id.length > 36 && id.indexOf("-") !== -1 ? id.substring(0, 36) : id;
+    try {
+      await db.delete("planner_events", baseId);
+      await loadUserEvents();
+    } catch (err) {
+      console.error("[PLANNER] delete error:", err);
+    }
   }
 
   return (

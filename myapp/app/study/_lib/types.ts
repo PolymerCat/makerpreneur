@@ -91,6 +91,7 @@ export type PlanDay = {
 
 export type ScheduleBlock = {
   id: string;
+  userId: string;
   title: string;
   kind: string;
   startsAt: string;

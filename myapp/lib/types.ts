@@ -104,6 +104,7 @@ export type Subject = {
 
 export type CalendarEvent = {
   id: string;
+  userId?: string;
   title: string;
   description: string;
   location: string;
@@ -112,4 +113,15 @@ export type CalendarEvent = {
   end_time: string;
   rrule: string | null;
   google_event_id: string | null;
+};
+
+export type Assignment = {
+  id: string;
+  userId: string;
+  title: string;
+  subject?: string | null;
+  deadline: string;
+  status: "pending" | "done";
+  createdAt: string;
+  updatedAt: string;
 };

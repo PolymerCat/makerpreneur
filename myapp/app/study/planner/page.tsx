@@ -5,6 +5,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { PageHero } from "@/components/layout/PageHero";
 import { Card } from "@/components/ui/Card";
 import { db } from "../_lib/db";
+import { useSession } from "@/lib/auth-context";
 import type { ScheduleBlock } from "../_lib/types";
 import { CourseBar } from "../_components/CourseBar";
 
@@ -16,7 +17,9 @@ var KIND_ICONS: Record<string, string> = {
 };
 
 export default function PlannerPage() {
-  var [blocks, setBlocks] = React.useState<ScheduleBlock[]>([]);
+  var { user } = useSession();
+  var userId = user?.id || "";
+  var [blocks, setBlocks] = React.useState<ScheduleBlock[]>([]); 
   var [weekStart, setWeekStart] = React.useState(getMonday(new Date()));
   var [showForm, setShowForm] = React.useState(false);
   var [formTitle, setFormTitle] = React.useState("");
@@ -71,12 +74,13 @@ export default function PlannerPage() {
 
   async function handleSubmitForm(e: React.FormEvent): Promise<void> {
     e.preventDefault();
-    if (formTitle.trim() === "" || formDate === "") {
+    if (formTitle.trim() === "" || formDate === "" || !userId) {
       return;
     }
     var startsAt = formDate + "T" + formStart + ":00";
     var endsAt = formDate + "T" + formEnd + ":00";
     await db.insert("schedule_blocks", {
+      userId: userId,
       title: formTitle,
       kind: formKind,
       startsAt: startsAt,
