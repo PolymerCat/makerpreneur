@@ -6,7 +6,7 @@
 -- NOTE: 0009's policy blocked global memories because `s.id = NULL` is never
 -- true. It also lacked a user_id = auth.uid() guard. This policy supersedes it.
 -- Apply manually in the Supabase SQL editor (there is no migration runner).
-
+--test
 alter table public.memories enable row level security;
 
 drop policy if exists "public all" on public.memories;
