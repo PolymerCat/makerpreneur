@@ -42,7 +42,7 @@ var COLUMN_MAP: Record<string, Record<string, string>> = {
   papers:       { courseId: "course_id", fileUrl: "file_url", extractedText: "extracted_text" },
   study_plans:  { courseId: "course_id", examDate: "exam_date" },
   plan_days:    { planId: "plan_id", dayNumber: "day_number" },
-  schedule_blocks: { startsAt: "starts_at", endsAt: "ends_at" },
+  schedule_blocks: { userId: "user_id", startsAt: "starts_at", endsAt: "ends_at" },
   predictions:  { courseId: "course_id", createdAt: "created_at", freqJson: "freq_json", questionsJson: "questions_json", studiedIds: "studied_ids" },
   generated_exams: { courseId: "course_id", courseCode: "course_code", fileUrl: "file_url", questionsJson: "questions_json", createdAt: "created_at" },
   faculties: { createdBy: "created_by", createdAt: "created_at" },
@@ -53,7 +53,10 @@ var COLUMN_MAP: Record<string, Record<string, string>> = {
   messages: { conversationId: "conversation_id", createdAt: "created_at" },
   memories: { userId: "user_id", courseId: "course_id", conversationId: "conversation_id", createdAt: "created_at", updatedAt: "updated_at" },
   events: { createdBy: "created_by", startsAt: "starts_at", endsAt: "ends_at", imageUrl: "image_url", registrationDeadline: "registration_deadline", formFields: "form_fields", registeredCount: "registered_count", createdAt: "created_at", updatedAt: "updated_at" },
-  event_registrations: { eventId: "event_id", userId: "user_id", createdAt: "created_at", updatedAt: "updated_at" }
+  event_registrations: { eventId: "event_id", userId: "user_id", createdAt: "created_at", updatedAt: "updated_at" },
+  assignments: { userId: "user_id", createdAt: "created_at", updatedAt: "updated_at" },
+  profiles: { fullName: "full_name", matricNumber: "matric_number", preferredLanguage: "preferred_language", mycsdPoints: "mycsd_points", createdAt: "created_at", updatedAt: "updated_at" },
+  planner_events: { userId: "user_id", createdAt: "created_at", updatedAt: "updated_at" }
 };
 
 function toSnake(table: string, data: any): any {

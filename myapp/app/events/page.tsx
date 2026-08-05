@@ -85,6 +85,15 @@ export default function EventsPage() {
         var regs = await db.listAll("event_registrations", { userId: userId }, null);
         setRegistrations(regs);
       }
+      // Check query parameter ?eventId=... to auto-open details modal
+      if (typeof window !== "undefined") {
+        var params = new URLSearchParams(window.location.search);
+        var targetId = params.get("eventId");
+        if (targetId && evs && evs.length > 0) {
+          var targetEv = evs.find(function(e) { return e.id === targetId; });
+          if (targetEv) setDetailEvent(targetEv);
+        }
+      }
     } catch (err) {
       console.error("[EVENTS] Failed to load:", err);
     }
@@ -281,10 +290,37 @@ export default function EventsPage() {
 
   async function handleSetAttendance(regId: string, status: EventRegistrationStatus) {
     try {
+      var targetReg = rosterRegs.find(function(r) { return r.id === regId; });
+      var oldStatus = targetReg?.status;
+
       await db.update("event_registrations", regId, { status: status });
       setRosterRegs(rosterRegs.map(function(r) {
         return r.id === regId ? { ...r, status: status } : r;
       }));
+
+      // Durable MyCSD Points logic: update student's profile mycsd_points in DB
+      if (targetReg && rosterEvent && rosterEvent.points > 0) {
+        var studentUserId = targetReg.userId;
+        var pts = rosterEvent.points;
+        if (oldStatus !== "attended" && status === "attended") {
+          try {
+            var studentProf = await db.getById("profiles", studentUserId);
+            var currentPts = studentProf ? (studentProf.mycsdPoints || 0) : 0;
+            await db.update("profiles", studentUserId, { mycsdPoints: currentPts + pts });
+          } catch (pErr) {
+            console.warn("[EVENTS] Failed to award MyCSD points to profile:", pErr);
+          }
+        } else if (oldStatus === "attended" && status !== "attended") {
+          try {
+            var studentProf2 = await db.getById("profiles", studentUserId);
+            var currentPts2 = studentProf2 ? (studentProf2.mycsdPoints || 0) : 0;
+            await db.update("profiles", studentUserId, { mycsdPoints: Math.max(0, currentPts2 - pts) });
+          } catch (pErr2) {
+            console.warn("[EVENTS] Failed to revoke MyCSD points from profile:", pErr2);
+          }
+        }
+      }
+
       await loadAll();
     } catch (err) {
       console.error("[EVENTS] attendance error:", err);
