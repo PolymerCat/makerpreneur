@@ -29,6 +29,45 @@ export type CampusEvent = {
   category: string;
 };
 
+export type FormField = {
+  id: string;
+  label: string;
+  required: boolean;
+};
+
+export type MyCSDEvent = {
+  id: string;
+  createdBy: string;
+  name: string;
+  organizer: string;
+  category: string;
+  startsAt: string;
+  endsAt?: string | null;
+  imageUrl?: string | null;
+  location: string;
+  points: number;
+  fee: string | null;
+  registrationDeadline: string;
+  description: string | null;
+  formFields: FormField[];
+  status: "open" | "cancelled";
+  registeredCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type EventRegistrationStatus = "registered" | "attended" | "no_show" | "cancelled";
+
+export type EventRegistration = {
+  id: string;
+  eventId: string;
+  userId: string;
+  answers: Record<string, string>;
+  status: EventRegistrationStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type FeedItem = {
   id: string;
   title: string;
