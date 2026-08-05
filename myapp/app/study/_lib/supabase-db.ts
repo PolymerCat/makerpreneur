@@ -51,7 +51,9 @@ var COLUMN_MAP: Record<string, Record<string, string>> = {
   search_index: { materialId: "material_id", indexData: "index_data" },
   conversations: { userId: "user_id", createdAt: "created_at", updatedAt: "updated_at" },
   messages: { conversationId: "conversation_id", createdAt: "created_at" },
-  memories: { userId: "user_id", courseId: "course_id", conversationId: "conversation_id", createdAt: "created_at", updatedAt: "updated_at" }
+  memories: { userId: "user_id", courseId: "course_id", conversationId: "conversation_id", createdAt: "created_at", updatedAt: "updated_at" },
+  events: { createdBy: "created_by", startsAt: "starts_at", endsAt: "ends_at", imageUrl: "image_url", registrationDeadline: "registration_deadline", formFields: "form_fields", registeredCount: "registered_count", createdAt: "created_at", updatedAt: "updated_at" },
+  event_registrations: { eventId: "event_id", userId: "user_id", createdAt: "created_at", updatedAt: "updated_at" }
 };
 
 function toSnake(table: string, data: any): any {
