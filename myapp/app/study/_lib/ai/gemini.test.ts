@@ -163,24 +163,49 @@ describe("classifyRoute", () => {
     }));
   }
 
-  it("returns chat when the classifier replies CHAT", async () => {
-    mockClassifierReply("CHAT");
+  function mockFetchCalls(): number {
+    const fn = vi.mocked(fetch);
+    return fn.mock.calls.length;
+  }
+
+  it("keyword layer: routes greetings to chat without any LLM call", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key");
+    vi.stubGlobal("fetch", vi.fn());
     await expect(llm.classifyRoute("hi")).resolves.toBe("chat");
+    await expect(llm.classifyRoute("hello there")).resolves.toBe("chat");
+    await expect(llm.classifyRoute("thanks")).resolves.toBe("chat");
+    expect(mockFetchCalls()).toBe(0);
   });
 
-  it("returns tool when the classifier replies TOOL", async () => {
-    mockClassifierReply("TOOL");
+  it("keyword layer: routes explicit tool verbs to tool without any LLM call", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key");
+    vi.stubGlobal("fetch", vi.fn());
     await expect(llm.classifyRoute("make me flashcards on physics")).resolves.toBe("tool");
+    await expect(llm.classifyRoute("generate a quiz on biology")).resolves.toBe("tool");
+    await expect(llm.classifyRoute("translate hi to malay")).resolves.toBe("tool");
+    await expect(llm.classifyRoute("search my notes for X")).resolves.toBe("tool");
+    expect(mockFetchCalls()).toBe(0);
   });
 
-  it("defaults to tool on ambiguity or failure", async () => {
+  it("falls through to the classifier for ambiguous questions", async () => {
+    mockClassifierReply("CHAT");
+    await expect(llm.classifyRoute("can you summarize my notes?")).resolves.toBe("chat");
+    expect(mockFetchCalls()).toBe(1);
+
+    vi.unstubAllEnvs();
+    mockClassifierReply("TOOL");
+    await expect(llm.classifyRoute("something weird")).resolves.toBe("tool");
+    expect(mockFetchCalls()).toBe(1);
+  });
+
+  it("defaults to tool on ambiguity or classifier failure", async () => {
     mockClassifierReply("MAYBE");
     await expect(llm.classifyRoute("something weird")).resolves.toBe("tool");
 
     vi.unstubAllEnvs();
     vi.stubEnv("OPENROUTER_API_KEY", "test-key");
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
-    await expect(llm.classifyRoute("hi")).resolves.toBe("tool");
+    await expect(llm.classifyRoute("something weird")).resolves.toBe("tool");
   });
 });
 

@@ -636,22 +636,50 @@ async function* generateContentStreamWithTools(
 }
 
 // Tiny pre-classifier that decides if a question needs the agent's tools
-// (flashcards, quiz, memory, PDF, etc.) or is simple chat. Uses the
-// smallest NITRO model to minimize added latency. Default-safe: any
-// failure or ambiguity routes to TOOL (Gemini handles both fine).
+// (flashcards, quiz, memory, PDF, etc.) or is simple chat. Fast keyword layer
+// short-circuits obvious cases (zero LLM latency); only ambiguous questions
+// reach the small classifier model. Default-safe: any failure or ambiguity
+// routes to TOOL (Gemini handles both fine).
+var ROUTE_TOOL_RE = /\b(flashcards?|flash\s?cards?|quiz|quizzes|test me|past paper(s)?|exam paper|translate|translation|study plan|exam readiness|save.*(memory|name|goal|preference|weakness)|remember my|search (?:my |the )?(materials?|notes?|slides?|past papers?)|list memories?)\b/i;
+var ROUTE_CHAT_RE = /^(hi|hello|hey|yo|sup|hiya|thanks?|thank you|ty|ok|okay|cool|nice|yes|yep|yeah|no|nope|nah|bye|later)[!.?\s]*$/i;
+var ROUTE_CHAT_GREETING_RE = /^\s*(hi|hello|hey|yo|sup)\s+(there|everyone|guys|buddy|mate)\s*[!.?\s]*$/i;
+
+function routeByKeyword(question: string): "tool" | "chat" | null {
+  var trimmed = (question || "").trim();
+  if (!trimmed) return null;
+  if (ROUTE_TOOL_RE.test(trimmed)) return "tool";
+  if (ROUTE_CHAT_RE.test(trimmed)) return "chat";
+  if (ROUTE_CHAT_GREETING_RE.test(trimmed)) return "chat";
+  return null;
+}
+
 async function classifyRoute(question: string): Promise<"tool" | "chat"> {
+  var keyword = routeByKeyword(question);
+  if (keyword) {
+    console.log("[ROUTER] keyword route: " + keyword);
+    return keyword;
+  }
+
   var prompt = "You are a router for a study assistant. Classify whether the student's question requires a TOOL action or is simple CHAT.\n\n" +
     "TOOL means: making flashcards, generating quizzes, making an exam paper PDF, translating text, saving/searching/listing personal memories, fetching a study plan, fetching exam readiness, searching uploaded course materials, or searching past papers.\n" +
     "CHAT means: greetings, concept explanations, follow-up questions, study tips, or anything answerable from general knowledge.\n\n" +
+    "Examples:\n" +
+    "Q: hi\nA: CHAT\n" +
+    "Q: what is photosynthesis?\nA: CHAT\n" +
+    "Q: explain Newton's second law\nA: CHAT\n" +
+    "Q: make me 5 flashcards on thermodynamics\nA: TOOL\n" +
+    "Q: translate hi to malay\nA: TOOL\n" +
+    "Q: generate a quiz on biology\nA: TOOL\n" +
+    "Q: remember that my name is Ali\nA: TOOL\n\n" +
     "Reply with exactly one word: TOOL or CHAT.\n\n" +
     "Question: " + question;
   try {
     var data = await openRouterChat(
-      "openai/gpt-oss-120b:nitro",
+      "poolside/laguna-xs-2.1:nitro",
       [{ role: "user", content: prompt }],
       { temperature: 0, maxTokens: 5 }
     );
-    var parsed = parseOpenAIChat(data, "openai/gpt-oss-120b:nitro");
+    var parsed = parseOpenAIChat(data, "poolside/laguna-xs-2.1:nitro");
     var text = (parsed.text || "").toUpperCase().trim();
     if (text.indexOf("CHAT") !== -1 && text.indexOf("TOOL") === -1) {
       return "chat";

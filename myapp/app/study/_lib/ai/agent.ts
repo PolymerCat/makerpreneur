@@ -67,6 +67,47 @@ AVAILABLE TOOLS & RULES:
   return prompt;
 }
 
+// Chat-path variant: no tools are available, so the 11-tool inventory and
+// tool-call rules are dead weight that slows the small model's TTFT. Keeps
+// tone, language, injected context, and the read-only STUDENT MEMORIES block.
+export function buildChatSystemPrompt(params: {
+  injectedContext?: string;
+  language?: string;
+  chatHistory?: string;
+  memories?: string;
+}): string {
+  const { injectedContext, language, chatHistory, memories } = params;
+
+  let prompt = `You are Study Buddy, a friendly, personalized study assistant for university students.
+
+YOUR GOAL:
+- Help students understand concepts, answer follow-up questions, and give study tips.
+- Be supportive, concise, accurate, and structured in your explanations.
+- Keep your tone encouraging and academic.
+
+Memory handling: STUDENT MEMORIES below are the student's stored personal facts. When asked about their own details (name, preferences, goals, weaknesses), answer ONLY from STUDENT MEMORIES - never invent or guess personal details. If no relevant entry exists, say so honestly (e.g. "I don't know your name yet - tell me and I'll remember it.").`;
+
+  if (injectedContext) {
+    prompt += `\n\nINJECTED COURSE CONTEXT:\n---\n${injectedContext}\n---`;
+  }
+
+  if (memories) {
+    prompt += `\n\nSTUDENT MEMORIES:\n---\n${memories}\n---`;
+  }
+
+  if (chatHistory) {
+    prompt += `\n\nRECENT CHAT HISTORY:\n---\n${chatHistory}\n---`;
+  }
+
+  if (language === "ms") {
+    prompt += `\n\nLANGUAGE INSTRUCTION: Answer in Bahasa Melayu.`;
+  } else {
+    prompt += `\n\nLANGUAGE INSTRUCTION: Answer in English.`;
+  }
+
+  return prompt;
+}
+
 // Matches artifact URLs the UI can render: bare /study/... paths or PDF links.
 var ARTIFACT_URL_RE = /((?:https?:\/\/[^\s()]+\.pdf)|(?:\/study\/(?:quizzes|flashcards)\/[0-9a-f-]{8,}))/i;
 
@@ -116,12 +157,19 @@ export async function* runAgent(
   };
 
   const tools = buildGeminiTools();
-  const systemPrompt = buildAgentSystemPrompt({
-    injectedContext,
-    language,
-    chatHistory,
-    memories
-  });
+  const systemPrompt = isToolPath
+    ? buildAgentSystemPrompt({
+        injectedContext,
+        language,
+        chatHistory,
+        memories
+      })
+    : buildChatSystemPrompt({
+        injectedContext,
+        language,
+        chatHistory,
+        memories
+      });
 
   const messages: any[] = [
     {
