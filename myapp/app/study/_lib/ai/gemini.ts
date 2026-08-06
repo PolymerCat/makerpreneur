@@ -1,6 +1,5 @@
 import type { GeminiImagePart } from "../chat-images";
 
-var OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "";
 var GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 
 var OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -9,35 +8,43 @@ type Slot = {
   provider: "openrouter" | "gemini";
   model: string;
 };
-// Free-first chain, ordered by bench speed (scripts/bench-openrouter.ts).
-// Slots 1-6 are OpenRouter (free + BYOK); slots 7+ are direct Gemini fallbacks.
+// Paid-first chain, all OpenRouter (user credits live on OR, not direct Gemini).
+// Free pool is commented out (latency tax) — uncomment if credits run out.
 var TEXT_SLOTS: Slot[] = [
-  { provider: "openrouter", model: "openrouter/free" },
-  { provider: "openrouter", model: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free" },
-  { provider: "openrouter", model: "google/gemini-3.6-flash" },
-  { provider: "openrouter", model: "google/gemini-3.5-flash" },
-  { provider: "openrouter", model: "google/gemma-4-31b-it:free" },
-  { provider: "openrouter", model: "openai/gpt-oss-20b:free" },
-  { provider: "gemini", model: "gemini-3.6-flash" },
-  { provider: "gemini", model: "gemini-3.5-flash" },
-  { provider: "gemini", model: "gemini-3.5-flash-lite" },
-  { provider: "gemini", model: "gemini-3.1-flash-lite" },
-  { provider: "gemini", model: "gemini-2.5-flash" }
+  { provider: "openrouter", model: "google/gemini-3.6-flash:nitro" },
+  { provider: "openrouter", model: "google/gemini-3.5-flash:nitro" },
+  // ponytail: free pool demoted — re-enable if credits run out
+  // { provider: "openrouter", model: "openrouter/free" },
+  // { provider: "openrouter", model: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free" },
+  // { provider: "openrouter", model: "google/gemma-4-31b-it:free" },
+  // { provider: "openrouter", model: "openai/gpt-oss-20b:free" }
 ];
 
-var VISION_SLOTS: Slot[] = ([
-  { provider: "openrouter", model: "openrouter/free" },
-  { provider: "openrouter", model: "google/gemma-4-31b-it:free" },
-  { provider: "openrouter", model: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free" }
-] as Slot[]).concat(TEXT_SLOTS.filter(function(s: Slot) { return s.provider === "gemini"; }));
+var VISION_SLOTS: Slot[] = [
+  { provider: "openrouter", model: "google/gemini-3.6-flash:nitro" },
+  { provider: "openrouter", model: "google/gemini-3.5-flash:nitro" },
+  // ponytail: free vision pool demoted
+  // { provider: "openrouter", model: "openrouter/free" },
+  // { provider: "openrouter", model: "google/gemma-4-31b-it:free" },
+  // { provider: "openrouter", model: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free" }
+];
+
+// Small fast path for non-tool chat (classifier returns "chat").
+// Order: GPT-OSS (primary) -> Laguna -> Ling, Gemini as deep tail fallback.
+var SMALL_CHAT_SLOTS: Slot[] = [
+  { provider: "openrouter", model: "openai/gpt-oss-120b:nitro" },
+  { provider: "openrouter", model: "poolside/laguna-xs-2.1:nitro" },
+  { provider: "openrouter", model: "inclusionai/ling-2.6-flash:nitro" },
+  { provider: "openrouter", model: "google/gemini-3.6-flash:nitro" }
+];
 
 var EMBED_MODELS = [
   "gemini-embedding-001",
   "text-embedding-004"
 ];
 
-// Free endpoints on OpenRouter are ~20 RPM; direct Gemini is far more lenient.
-var MIN_GAPS: Record<string, number> = { gemini: 0.35, openrouter: 3 };
+// Paid OpenRouter endpoints are not ~20 RPM throttled; gap is only anti-hammer.
+var MIN_GAPS: Record<string, number> = { gemini: 0.35, openrouter: 0.3 };
 var lastCallTime: Record<string, number> = {};
 var modelCooldown: Record<string, number> = {};
 
@@ -90,6 +97,21 @@ export type LlmResult<T> = {
 
 // --- Translation helpers (Gemini format <-> OpenAI format) ------------------
 
+// OpenAI schema uses lowercase type enums ("object", "string"...) while
+// Gemini uses uppercase ("OBJECT", "STRING"...). Deep-clone + lowercase
+// so OpenRouter's OpenAI-spec validation accepts the tools payload.
+function normalizeSchema(s: any): any {
+  if (!s || typeof s !== "object") return s;
+  var out: any = Array.isArray(s) ? [] : {};
+  for (var k in s) {
+    var v = s[k];
+    if (k === "type" && typeof v === "string") { v = v.toLowerCase(); }
+    else if (v && typeof v === "object") { v = normalizeSchema(v); }
+    out[k] = v;
+  }
+  return out;
+}
+
 export function toOpenAITools(geminiTools: any[]): any[] {
   if (!geminiTools) return [];
   var out: any[] = [];
@@ -97,7 +119,7 @@ export function toOpenAITools(geminiTools: any[]): any[] {
     var decls = geminiTools[i].functionDeclarations || [];
     for (var j = 0; j < decls.length; j++) {
       var d = decls[j];
-      out.push({ type: "function", function: { name: d.name, description: d.description, parameters: d.parameters } });
+      out.push({ type: "function", function: { name: d.name, description: d.description, parameters: normalizeSchema(d.parameters) } });
     }
   }
   return out;
@@ -258,13 +280,20 @@ async function runSlotChain<T>(
 // --- OpenRouter (OpenAI-compatible) driver ---------------------------------
 
 async function openRouterChat(model: string, messages: any[], opts: { temperature?: number; maxTokens?: number; json?: boolean; tools?: any[]; stream?: boolean } = {}): Promise<any> {
-  if (!OPENROUTER_API_KEY) {
+  var openRouterKey = process.env.OPENROUTER_API_KEY || "";
+  if (!openRouterKey) {
     throw new Error("OPENROUTER_API_KEY is not set");
   }
   var body: Record<string, unknown> = {
     model: model,
     messages: messages,
     temperature: typeof opts.temperature === "number" ? opts.temperature : 0.3
+  };
+  // Latency-first routing: sort providers by last-5-min response time.
+  // No models array — client-side slot chain (TEXT_SLOTS) owns fallback.
+  body.provider = {
+    sort: "latency",
+    allow_fallbacks: true
   };
   if (opts.maxTokens) body.max_tokens = opts.maxTokens;
   if (opts.json) body.response_format = { type: "json_object" };
@@ -276,7 +305,7 @@ async function openRouterChat(model: string, messages: any[], opts: { temperatur
   var res = await fetch(OPENROUTER_URL, {
     method: "POST",
     headers: {
-      "Authorization": "Bearer " + OPENROUTER_API_KEY,
+      "Authorization": "Bearer " + openRouterKey,
       "Content-Type": "application/json",
       "HTTP-Referer": "https://study-hub.local",
       "X-Title": "Makerpreneur Study Hub"
@@ -287,6 +316,7 @@ async function openRouterChat(model: string, messages: any[], opts: { temperatur
     if (!res.ok || !res.body) {
       var errData0: any = null;
       try { errData0 = await res.json(); } catch (e) { /* ignore */ }
+      console.error("[OR] non-200 body:", JSON.stringify(errData0));
       var errMsg0 = (errData0 && errData0.error && errData0.error.message) || ("OpenRouter HTTP " + res.status);
       var e0: any = new Error(errMsg0);
       e0.status = res.status;
@@ -297,6 +327,7 @@ async function openRouterChat(model: string, messages: any[], opts: { temperatur
   var data: any = null;
   try { data = await res.json(); } catch (e) { data = null; }
   if (!res.ok) {
+    console.error("[OR] non-200 body:", JSON.stringify(data));
     var errMsg = (data && data.error && data.error.message) || ("OpenRouter HTTP " + res.status);
     var err: any = new Error(errMsg);
     err.status = res.status;
@@ -481,6 +512,185 @@ async function* generateContentStream(
   throw new Error("AI service is temporarily unavailable. Please try again later.");
 }
 
+export type AgentStreamEvent =
+  | { type: "text_delta"; content: string }
+  | { type: "tool_calls"; calls: any[]; usage: LlmUsage }
+  | { type: "end"; usage: LlmUsage };
+
+// Streaming variant that also surfaces tool calls, so the agent can
+// stream text deltas and still detect function calls at stream end.
+async function* generateContentStreamWithTools(
+  messages: any[],
+  opts: { tools?: any; temperature?: number; task?: string; onUsage?: (usage: LlmUsage) => void; slots?: Slot[] } = {}
+): AsyncGenerator<AgentStreamEvent, void, unknown> {
+  var onUsage = opts.onUsage;
+  var temp = typeof opts.temperature === "number" ? opts.temperature : 0.3;
+  var task = opts.task || "generateContentStreamWithTools";
+  var lastError: unknown = null;
+  var openAiMessages = toOpenAIMessages(messages);
+  var slots = opts.slots || TEXT_SLOTS;
+
+  for (var i = 0; i < slots.length; i++) {
+    var slot = slots[i];
+    var key = slotKey(slot);
+    if (inCooldown(key)) continue;
+    try {
+      var gap = MIN_GAPS[slot.provider] || 0.35;
+      await slotRateLimit(key, gap);
+      console.log("[LLM] trying " + key + " stream+tools (" + task + ")");
+      slotTrackCall(key);
+
+      if (slot.provider === "openrouter") {
+        var res = await openRouterChat(slot.model, openAiMessages, { temperature: temp, tools: toOpenAITools(opts.tools), stream: true });
+        var reader = res.body.getReader();
+        var decoder = new TextDecoder();
+        var buffer = "";
+        var usageReported = false;
+        var usage: LlmUsage = { model: slot.model, inputTokens: 0, outputTokens: 0 };
+        var toolAcc: Record<number, { id?: string; name?: string; argsBuf: string }> = {};
+        while (true) {
+          var read = await reader.read();
+          if (read.done) break;
+          buffer += decoder.decode(read.value, { stream: true });
+          var lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+          for (var li = 0; li < lines.length; li++) {
+            var parsed = parseSSEChunk(lines[li]);
+            if (!parsed) continue;
+            if (parsed.error) {
+              var e1: any = new Error(parsed.error.message || "OpenRouter stream error");
+              e1.status = 500;
+              throw e1;
+            }
+            if (parsed.usage && !usageReported) {
+              usageReported = true;
+              usage = { model: slot.model, inputTokens: parsed.usage.prompt_tokens || 0, outputTokens: parsed.usage.completion_tokens || 0 };
+              if (onUsage) onUsage(usage);
+            }
+            var delta = parsed.choices && parsed.choices[0] && parsed.choices[0].delta;
+            if (delta) {
+              if (typeof delta.content === "string" && delta.content !== "") {
+                yield { type: "text_delta", content: delta.content };
+              }
+              if (Array.isArray(delta.tool_calls)) {
+                for (var tc = 0; tc < delta.tool_calls.length; tc++) {
+                  var t = delta.tool_calls[tc];
+                  var idx = t.index || 0;
+                  var acc = toolAcc[idx] || (toolAcc[idx] = { argsBuf: "" });
+                  if (t.id) acc.id = t.id;
+                  if (t.function && t.function.name) acc.name = t.function.name;
+                  if (t.function && typeof t.function.arguments === "string") acc.argsBuf += t.function.arguments;
+                }
+              }
+            }
+          }
+        }
+        var calls: any[] = [];
+        for (var accIdx in toolAcc) {
+          var accItem = toolAcc[accIdx];
+          var args: any = {};
+          try { args = JSON.parse(accItem.argsBuf || "{}"); } catch (e2) { args = {}; }
+          calls.push({ name: accItem.name || "", args: args });
+        }
+        yield { type: "tool_calls", calls: calls, usage: usage };
+        yield { type: "end", usage: usage };
+        return;
+      } else {
+        var client = await getClient();
+        var responseStream = await client.models.generateContentStream({
+          model: slot.model,
+          contents: messages,
+          config: { temperature: temp, tools: opts.tools }
+        });
+        var usageGemini: LlmUsage = { model: slot.model, inputTokens: 0, outputTokens: 0 };
+        var geminiCalls: any[] = [];
+        var usageReportedGemini = false;
+        for await (var chunk of responseStream) {
+          if (!usageReportedGemini && chunk.usageMetadata) {
+            usageReportedGemini = true;
+            usageGemini = { model: slot.model, inputTokens: chunk.usageMetadata.promptTokenCount || 0, outputTokens: chunk.usageMetadata.candidatesTokenCount || 0 };
+            if (onUsage) onUsage(usageGemini);
+          }
+          if (chunk.text) {
+            yield { type: "text_delta", content: chunk.text };
+          }
+          var fc = chunk.functionCalls;
+          if (fc && fc.length > 0) {
+            for (var f = 0; f < fc.length; f++) {
+              geminiCalls.push({ name: fc[f].name, args: fc[f].args || {} });
+            }
+          }
+        }
+        yield { type: "tool_calls", calls: geminiCalls, usage: usageGemini };
+        yield { type: "end", usage: usageGemini };
+        return;
+      }
+    } catch (err: unknown) {
+      lastError = err;
+      recordQuotaError(key, err);
+      console.error("[LLM] " + key + " stream+tools failed (" + task + "):", err);
+    }
+  }
+  console.error("[LLM] All slots exhausted for generateContentStreamWithTools (" + task + "). Last error:", lastError);
+  throw new Error("AI service is temporarily unavailable. Please try again later.");
+}
+
+// Tiny pre-classifier that decides if a question needs the agent's tools
+// (flashcards, quiz, memory, PDF, etc.) or is simple chat. Fast keyword layer
+// short-circuits obvious cases (zero LLM latency); only ambiguous questions
+// reach the small classifier model. Default-safe: any failure or ambiguity
+// routes to TOOL (Gemini handles both fine).
+var ROUTE_TOOL_RE = /\b(flashcards?|flash\s?cards?|quiz|quizzes|test me|past paper(s)?|exam paper|translate|translation|study plan|exam readiness|save.*(memory|name|goal|preference|weakness)|remember my|search (?:my |the )?(materials?|notes?|slides?|past papers?)|list memories?)\b/i;
+var ROUTE_CHAT_RE = /^(hi|hello|hey|yo|sup|hiya|thanks?|thank you|ty|ok|okay|cool|nice|yes|yep|yeah|no|nope|nah|bye|later)[!.?\s]*$/i;
+var ROUTE_CHAT_GREETING_RE = /^\s*(hi|hello|hey|yo|sup)\s+(there|everyone|guys|buddy|mate)\s*[!.?\s]*$/i;
+
+function routeByKeyword(question: string): "tool" | "chat" | null {
+  var trimmed = (question || "").trim();
+  if (!trimmed) return null;
+  if (ROUTE_TOOL_RE.test(trimmed)) return "tool";
+  if (ROUTE_CHAT_RE.test(trimmed)) return "chat";
+  if (ROUTE_CHAT_GREETING_RE.test(trimmed)) return "chat";
+  return null;
+}
+
+async function classifyRoute(question: string): Promise<"tool" | "chat"> {
+  var keyword = routeByKeyword(question);
+  if (keyword) {
+    console.log("[ROUTER] keyword route: " + keyword);
+    return keyword;
+  }
+
+  var prompt = "You are a router for a study assistant. Classify whether the student's question requires a TOOL action or is simple CHAT.\n\n" +
+    "TOOL means: making flashcards, generating quizzes, making an exam paper PDF, translating text, saving/searching/listing personal memories, fetching a study plan, fetching exam readiness, searching uploaded course materials, or searching past papers.\n" +
+    "CHAT means: greetings, concept explanations, follow-up questions, study tips, or anything answerable from general knowledge.\n\n" +
+    "Examples:\n" +
+    "Q: hi\nA: CHAT\n" +
+    "Q: what is photosynthesis?\nA: CHAT\n" +
+    "Q: explain Newton's second law\nA: CHAT\n" +
+    "Q: make me 5 flashcards on thermodynamics\nA: TOOL\n" +
+    "Q: translate hi to malay\nA: TOOL\n" +
+    "Q: generate a quiz on biology\nA: TOOL\n" +
+    "Q: remember that my name is Ali\nA: TOOL\n\n" +
+    "Reply with exactly one word: TOOL or CHAT.\n\n" +
+    "Question: " + question;
+  try {
+    var data = await openRouterChat(
+      "poolside/laguna-xs-2.1:nitro",
+      [{ role: "user", content: prompt }],
+      { temperature: 0, maxTokens: 5 }
+    );
+    var parsed = parseOpenAIChat(data, "poolside/laguna-xs-2.1:nitro");
+    var text = (parsed.text || "").toUpperCase().trim();
+    if (text.indexOf("CHAT") !== -1 && text.indexOf("TOOL") === -1) {
+      return "chat";
+    }
+    return "tool";
+  } catch (err: unknown) {
+    console.error("[ROUTER] classifier failed, defaulting to tool path:", err);
+    return "tool";
+  }
+}
+
 async function embedTexts(texts: string[]): Promise<number[][]> {
   var client = await getClient();
   var lastError: unknown = null;
@@ -551,31 +761,35 @@ async function generateFromDocument(
   if (mimeType.indexOf("image/") === 0) {
     return generateFromImages([{ inlineData: { mimeType: mimeType, data: base64Data } }], prompt, task || "generateFromDocument");
   }
-  // PDFs: direct Gemini only (native inlineData support).
-  var geminiSlots = TEXT_SLOTS.filter(function(s: Slot) { return s.provider === "gemini"; });
-  var lastError: unknown = null;
-  for (var i = 0; i < geminiSlots.length; i++) {
-    var slot = geminiSlots[i];
-    var key = slotKey(slot);
-    if (inCooldown(key)) continue;
-    try {
-      await slotRateLimit(key, MIN_GAPS.gemini);
-      slotTrackCall(key);
-      var out = await geminiDriver(slot, [
-        { role: "user", parts: [
-          { inlineData: { data: base64Data, mimeType: mimeType } },
-          { text: prompt }
-        ] }
-      ], { temperature: 0.2, maxTokens: 8192 });
-      return out.value;
-    } catch (err: unknown) {
-      lastError = err;
-      recordQuotaError(key, err);
-      console.error("[LLM] " + key + " failed (" + (task || "generateFromDocument") + "):", err);
+  // PDFs: OpenRouter paid first (Gemini family accepts PDF data URLs via
+  // image_url), direct Gemini as the tail (native inlineData support).
+  var pdfSlots: Slot[] = [
+    { provider: "openrouter", model: "google/gemini-3.6-flash:nitro" },
+    { provider: "openrouter", model: "google/gemini-3.5-flash:nitro" },
+    { provider: "gemini", model: "gemini-3.6-flash" },
+    { provider: "gemini", model: "gemini-3.5-flash" }
+  ];
+  var openAiMessages = [{
+    role: "user",
+    content: [
+      { type: "image_url", image_url: { url: "data:" + mimeType + ";base64," + base64Data } },
+      { type: "text", text: prompt }
+    ]
+  }];
+  var geminiParts = [
+    { inlineData: { data: base64Data, mimeType: mimeType } },
+    { text: prompt }
+  ];
+  var out = await runSlotChain<string>(pdfSlots, { temperature: 0.2, maxTokens: 8192, task: task || "generateFromDocument" }, function(slot: Slot) {
+    if (slot.provider === "openrouter") {
+      return openRouterChat(slot.model, openAiMessages, { temperature: 0.2, maxTokens: 8192 }).then(function(data: any) {
+        var parsed = parseOpenAIChat(data, slot.model);
+        return { value: parsed.text, usage: parsed.usage };
+      });
     }
-  }
-  console.error("[LLM] All slots exhausted for generateFromDocument. Last error:", lastError);
-  throw new Error("AI Vision service is temporarily unavailable. Please try again later.");
+    return geminiDriver(slot, [{ role: "user", parts: geminiParts }], { temperature: 0.2, maxTokens: 8192 });
+  });
+  return out.value;
 }
 
 export var llm = {
@@ -583,7 +797,11 @@ export var llm = {
   generateJson: generateJson,
   generateContent: generateContent,
   generateContentStream: generateContentStream,
+  generateContentStreamWithTools: generateContentStreamWithTools,
+  classifyRoute: classifyRoute,
   embedTexts: embedTexts,
   generateFromDocument: generateFromDocument,
   generateFromImages: generateFromImages
 };
+
+export { SMALL_CHAT_SLOTS };

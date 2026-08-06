@@ -244,7 +244,7 @@ export default function EventsPage() {
       });
       await db.update("events", ev.id, { registeredCount: (ev.registeredCount || 0) + 1 });
       setRegisterEvent(null);
-      flashNotice("You are registered for " + ev.name + ".");
+      flashNotice("You have successfully registered for " + ev.name + "!");
       await loadAll();
     } catch (err) {
       console.error("[EVENTS] register error:", err);
@@ -493,7 +493,7 @@ export default function EventsPage() {
 
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 24, paddingTop: 16, borderTop: "1px solid var(--line)" }}>
               {canRegister && (
-                <button className="btn btn-primary" type="button" onClick={function() { setRegisterEvent(ev); }} style={{ cursor: "pointer", height: 44, padding: "0 24px", fontSize: 15 }}>
+                <button className="btn btn-primary" type="button" onClick={function() { setRegisterEvent(ev); setDetailEvent(null); }} style={{ cursor: "pointer", height: 44, padding: "0 24px", fontSize: 15 }}>
                   <Icon name="ti-user-plus" /> Register Now
                 </button>
               )}
@@ -552,9 +552,36 @@ export default function EventsPage() {
       </div>
 
       {notice && (
-        <p style={{ margin: "0 0 16px", color: "var(--success, #16a34a)", fontSize: 15 }}>
-          <Icon name="ti-check" /> {notice}
-        </p>
+        <div style={{
+          position: "fixed",
+          top: 24,
+          right: 24,
+          zIndex: 9999,
+          background: "#ecfdf5",
+          color: "#065f46",
+          border: "1px solid #a7f3d0",
+          borderRadius: 12,
+          padding: "14px 20px",
+          boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.15)",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          fontSize: 15,
+          fontWeight: 600,
+        }}>
+          <span style={{ display: "inline-flex", background: "#10b981", color: "#fff", borderRadius: "50%", padding: 4, fontSize: 16 }}>
+            <Icon name="ti-check" />
+          </span>
+          <span>{notice}</span>
+          <button
+            type="button"
+            onClick={function() { setNotice(""); }}
+            style={{ background: "none", border: "none", color: "#065f46", cursor: "pointer", marginLeft: 8, padding: 2, display: "flex", alignItems: "center" }}
+            aria-label="Dismiss"
+          >
+            <Icon name="ti-x" />
+          </button>
+        </div>
       )}
 
       {/* Search Bar + Icon-based Filter & Sort popover controls */}

@@ -5,10 +5,19 @@ import * as toolsModule from "./tools";
 
 vi.mock("./gemini", () => ({
   llm: {
-    generateContent: vi.fn(),
-    generateContentStream: vi.fn()
-  }
+    generateContentStreamWithTools: vi.fn(),
+    classifyRoute: vi.fn()
+  },
+  SMALL_CHAT_SLOTS: [{ provider: "openrouter", model: "mock-small-model" }]
 }));
+
+function streamOf(events: any[]): any {
+  return async function* () {
+    for (const ev of events) {
+      yield ev;
+    }
+  };
+}
 
 describe("Agent Loop & Parallel Tool Execution Stress Tests", () => {
   beforeEach(() => {
@@ -16,12 +25,14 @@ describe("Agent Loop & Parallel Tool Execution Stress Tests", () => {
   });
 
   it("should yield text and done events when model makes no tool calls", async () => {
-    const mockGenerateContent = vi.mocked(llm.generateContent);
-    mockGenerateContent.mockResolvedValueOnce({
-      text: "Hello, student! How can I help you?",
-      functionCalls: [],
-      usage: { model: "gemini-3.6-flash", inputTokens: 10, outputTokens: 15 }
-    });
+    const mockClassify = vi.mocked(llm.classifyRoute);
+    mockClassify.mockResolvedValueOnce("chat");
+    const mockStream = vi.mocked(llm.generateContentStreamWithTools);
+    mockStream.mockImplementationOnce(streamOf([
+      { type: "text_delta", content: "Hello, student! How can I help you?" },
+      { type: "tool_calls", calls: [], usage: { model: "gemini-3.6-flash", inputTokens: 10, outputTokens: 15 } },
+      { type: "end", usage: { model: "gemini-3.6-flash", inputTokens: 10, outputTokens: 15 } }
+    ]));
 
     const generator = runAgent({
       userId: "user-1",
@@ -41,12 +52,13 @@ describe("Agent Loop & Parallel Tool Execution Stress Tests", () => {
   });
 
   it("should stream a canned confirmation with the artifact link after a successful generate_quiz, without a second LLM probe", async () => {
-    const mockGenerateContent = vi.mocked(llm.generateContent);
-    mockGenerateContent.mockResolvedValueOnce({
-      text: "",
-      functionCalls: [{ name: "generate_quiz", args: { questionCount: 5, topic: "Networking" } }],
-      usage: { model: "gemini-3.6-flash", inputTokens: 20, outputTokens: 30 }
-    });
+    const mockClassify = vi.mocked(llm.classifyRoute);
+    mockClassify.mockResolvedValueOnce("tool");
+    const mockStream = vi.mocked(llm.generateContentStreamWithTools);
+    mockStream.mockImplementationOnce(streamOf([
+      { type: "tool_calls", calls: [{ name: "generate_quiz", args: { questionCount: 5, topic: "Networking" } }], usage: { model: "gemini-3.6-flash", inputTokens: 20, outputTokens: 30 } },
+      { type: "end", usage: { model: "gemini-3.6-flash", inputTokens: 20, outputTokens: 30 } }
+    ]));
 
     const executeSpy = vi.spyOn(toolsModule, "executeTool").mockResolvedValue({
       ok: true,
@@ -65,7 +77,7 @@ describe("Agent Loop & Parallel Tool Execution Stress Tests", () => {
       events.push(event);
     }
 
-    expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+    expect(mockStream).toHaveBeenCalledTimes(1);
     expect(executeSpy).toHaveBeenCalledTimes(1);
     expect(events[0]).toEqual({ type: "tool_start", tool: "generate_quiz" });
     expect(events[2].type).toBe("text");
@@ -74,12 +86,13 @@ describe("Agent Loop & Parallel Tool Execution Stress Tests", () => {
   });
 
   it("should enforce max 4 turns iteration limit when model endlessly calls tools", async () => {
-    const mockGenerateContent = vi.mocked(llm.generateContent);
-    mockGenerateContent.mockResolvedValue({
-      text: "",
-      functionCalls: [{ name: "translate_text", args: { text: "hello", targetLanguage: "Spanish" } }],
-      usage: { model: "gemini-3.6-flash", inputTokens: 10, outputTokens: 10 }
-    });
+    const mockClassify = vi.mocked(llm.classifyRoute);
+    mockClassify.mockResolvedValueOnce("tool");
+    const mockStream = vi.mocked(llm.generateContentStreamWithTools);
+    mockStream.mockImplementation(streamOf([
+      { type: "tool_calls", calls: [{ name: "translate_text", args: { text: "hello", targetLanguage: "Spanish" } }], usage: { model: "gemini-3.6-flash", inputTokens: 10, outputTokens: 10 } },
+      { type: "end", usage: { model: "gemini-3.6-flash", inputTokens: 10, outputTokens: 10 } }
+    ]));
 
     const generator = runAgent({
       userId: "user-1",
@@ -100,24 +113,25 @@ describe("Agent Loop & Parallel Tool Execution Stress Tests", () => {
   });
 
   it("stress-tests 2 simultaneous tool calls in a single turn: verify execution order, events, and message history formatting", async () => {
-    const mockGenerateContent = vi.mocked(llm.generateContent);
+    const mockClassify = vi.mocked(llm.classifyRoute);
+    mockClassify.mockResolvedValueOnce("tool");
+    const mockStream = vi.mocked(llm.generateContentStreamWithTools);
 
     // Turn 0: returns 2 simultaneous tool calls
-    mockGenerateContent.mockResolvedValueOnce({
-      text: "",
-      functionCalls: [
+    mockStream.mockImplementationOnce(streamOf([
+      { type: "tool_calls", calls: [
         { name: "translate_text", args: { text: "hello", targetLanguage: "Malay" } },
         { name: "search_memory", args: { query: "preferences" } }
-      ],
-      usage: { model: "gemini-3.6-flash", inputTokens: 20, outputTokens: 30 }
-    });
+      ], usage: { model: "gemini-3.6-flash", inputTokens: 20, outputTokens: 30 } },
+      { type: "end", usage: { model: "gemini-3.6-flash", inputTokens: 20, outputTokens: 30 } }
+    ]));
 
     // Turn 1: model returns final answer after receiving tool results
-    mockGenerateContent.mockResolvedValueOnce({
-      text: "Translated and retrieved memory successfully.",
-      functionCalls: [],
-      usage: { model: "gemini-3.6-flash", inputTokens: 50, outputTokens: 20 }
-    });
+    mockStream.mockImplementationOnce(streamOf([
+      { type: "text_delta", content: "Translated and retrieved memory successfully." },
+      { type: "tool_calls", calls: [], usage: { model: "gemini-3.6-flash", inputTokens: 50, outputTokens: 20 } },
+      { type: "end", usage: { model: "gemini-3.6-flash", inputTokens: 50, outputTokens: 20 } }
+    ]));
 
     const executeSpy = vi.spyOn(toolsModule, "executeTool").mockImplementation(async (name) => {
       return { ok: true, result: `Result of ${name}` };
@@ -151,9 +165,9 @@ describe("Agent Loop & Parallel Tool Execution Stress Tests", () => {
     expect(executeSpy).toHaveBeenNthCalledWith(1, "translate_text", { text: "hello", targetLanguage: "Malay" }, expect.anything());
     expect(executeSpy).toHaveBeenNthCalledWith(2, "search_memory", { query: "preferences" }, expect.anything());
 
-    // Inspect message history passed to second generateContent call
-    expect(mockGenerateContent).toHaveBeenCalledTimes(2);
-    const messagesArg = mockGenerateContent.mock.calls[1][0];
+    // Inspect message history passed to second stream call
+    expect(mockStream).toHaveBeenCalledTimes(2);
+    const messagesArg = mockStream.mock.calls[1][0];
 
     // Check message history structure:
     // Index 0: User prompt
@@ -164,32 +178,33 @@ describe("Agent Loop & Parallel Tool Execution Stress Tests", () => {
     // Verify if tool responses are combined into a single user message or pushed as consecutive user messages
     const roles = messagesArg.map((m: any) => m.role);
     console.log("Roles order in message history:", roles);
-    
+
     // Check whether consecutive user turns exist (e.g. ['user', 'model', 'user', 'user'])
     const hasConsecutiveUserRoles = roles.some((role: string, idx: number) => idx > 0 && role === "user" && roles[idx - 1] === "user");
     expect(hasConsecutiveUserRoles).toBe(false); // In Gemini API spec, function responses for parallel tool calls should be in a single user turn
   });
 
   it("stress-tests 3 simultaneous tool calls in a single turn", async () => {
-    const mockGenerateContent = vi.mocked(llm.generateContent);
+    const mockClassify = vi.mocked(llm.classifyRoute);
+    mockClassify.mockResolvedValueOnce("tool");
+    const mockStream = vi.mocked(llm.generateContentStreamWithTools);
 
     // Turn 0: returns 3 simultaneous tool calls
-    mockGenerateContent.mockResolvedValueOnce({
-      text: "",
-      functionCalls: [
+    mockStream.mockImplementationOnce(streamOf([
+      { type: "tool_calls", calls: [
         { name: "search_material", args: { question: "thermodynamics" } },
         { name: "search_memory", args: { query: "weakness" } },
         { name: "get_exam_readiness", args: {} }
-      ],
-      usage: { model: "gemini-3.6-flash", inputTokens: 30, outputTokens: 40 }
-    });
+      ], usage: { model: "gemini-3.6-flash", inputTokens: 30, outputTokens: 40 } },
+      { type: "end", usage: { model: "gemini-3.6-flash", inputTokens: 30, outputTokens: 40 } }
+    ]));
 
     // Turn 1: final answer
-    mockGenerateContent.mockResolvedValueOnce({
-      text: "Here is your study summary based on 3 tools.",
-      functionCalls: [],
-      usage: { model: "gemini-3.6-flash", inputTokens: 80, outputTokens: 25 }
-    });
+    mockStream.mockImplementationOnce(streamOf([
+      { type: "text_delta", content: "Here is your study summary based on 3 tools." },
+      { type: "tool_calls", calls: [], usage: { model: "gemini-3.6-flash", inputTokens: 80, outputTokens: 25 } },
+      { type: "end", usage: { model: "gemini-3.6-flash", inputTokens: 80, outputTokens: 25 } }
+    ]));
 
     vi.spyOn(toolsModule, "executeTool").mockImplementation(async (name) => {
       return { ok: true, result: `Mock response for ${name}` };
@@ -215,9 +230,41 @@ describe("Agent Loop & Parallel Tool Execution Stress Tests", () => {
     expect(doneEvent).toEqual({ type: "done", toolCount: 3 });
 
     // Verify messages passed to model turn 2
-    const secondCallMessages = mockGenerateContent.mock.calls[1][0];
+    const secondCallMessages = mockStream.mock.calls[1][0];
     const roles = secondCallMessages.map((m: any) => m.role);
     const hasConsecutiveUserRoles = roles.some((role: string, idx: number) => idx > 0 && role === "user" && roles[idx - 1] === "user");
     expect(hasConsecutiveUserRoles).toBe(false);
+  });
+
+  it("should route simple chat through the small-model path with no tools", async () => {
+    const mockClassify = vi.mocked(llm.classifyRoute);
+    mockClassify.mockResolvedValueOnce("chat");
+    const mockStream = vi.mocked(llm.generateContentStreamWithTools);
+    mockStream.mockImplementationOnce(streamOf([
+      { type: "text_delta", content: "Hi! How can I help you study?" },
+      { type: "tool_calls", calls: [], usage: { model: "openai/gpt-oss-120b:nitro", inputTokens: 5, outputTokens: 8 } },
+      { type: "end", usage: { model: "openai/gpt-oss-120b:nitro", inputTokens: 5, outputTokens: 8 } }
+    ]));
+
+    const generator = runAgent({
+      userId: "user-1",
+      question: "hi",
+      subjectId: "subj-1",
+      language: "en"
+    });
+
+    const events: AgentEvent[] = [];
+    for await (const event of generator) {
+      events.push(event);
+    }
+
+    expect(mockClassify).toHaveBeenCalledWith("hi");
+    expect(mockStream).toHaveBeenCalledTimes(1);
+    const streamOpts = mockStream.mock.calls[0][1] as any;
+    expect(streamOpts.tools).toEqual([]);
+    expect(streamOpts.task).toBe("agent_chat");
+    expect(streamOpts.slots).toEqual([{ provider: "openrouter", model: "mock-small-model" }]);
+    expect(events[0]).toEqual({ type: "text", content: "Hi! How can I help you study?" });
+    expect(events[1]).toEqual({ type: "done", toolCount: 0 });
   });
 });
