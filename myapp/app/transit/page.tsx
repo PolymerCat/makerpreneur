@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHero } from "@/components/layout/PageHero";
 import { Card } from "@/components/ui/Card";
+import { TransitMap } from "@/components/domain/TransitMap";
 
 export default function TransitPage() {
   return (
@@ -13,9 +14,8 @@ export default function TransitPage() {
       />
 
       <section className="stack">
-        <Card className="contact-card">
-          <strong>Live tracking coming soon</strong>
-          <span>The real-time shuttle map will appear here.</span>
+        <Card className="transit-card">
+          <TransitMap />
         </Card>
       </section>
     </AppShell>

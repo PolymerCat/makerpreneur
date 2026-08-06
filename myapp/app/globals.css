@@ -815,6 +815,44 @@ input[type="range"] {
   font-size: 13px;
 }
 
+.transit-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.shuttle-map {
+  position: relative;
+  z-index: 0;
+  width: 100%;
+  height: 360px;
+}
+
+.shuttle-map .leaflet-container {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #e7e5e4;
+  font-family: inherit;
+}
+
+.shuttle-map .leaflet-container a {
+  color: var(--brand);
+}
+
+.shuttle-bus-marker {
+  background: transparent;
+  border: 0;
+}
+
+.shuttle-map-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 360px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
 .event-card {
   display: flex;
   min-height: 220px;
