@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run app/study/_lib/ai/",
-    "analyze-logs": "npx tsx scripts/analyze-logs.ts"
+    "analyze-logs": "npx tsx scripts/analyze-logs.ts",
+    "test-traccar": "tsx scripts/traccar-test.ts",
+    "mock-traccar": "tsx scripts/mock-traccar-server.ts"
   },
   "dependencies": {
     "@google/genai": "^2.14.0",
@@ -29,10 +31,13 @@
     "@types/pdfkit": "^0.17.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/ws": "^8.18.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "tailwindcss": "^4",
+    "tsx": "^4.23.8",
     "typescript": "^5",
-    "vitest": "^3.2.7"
+    "vitest": "^3.2.7",
+    "ws": "^8.21.2"
   }
 }

@@ -7,6 +7,7 @@ export const navItems: NavItem[] = [
   { href: "/study", label: "Study", icon: "ti-school" },
   { href: "/events", label: "MyCSD", icon: "ti-confetti" },
   { href: "/campus", label: "Campus", icon: "ti-building" },
+  { href: "/transit", label: "Transit", icon: "ti-bus" },
   { href: "/profile", label: "Profile", icon: "ti-user" },
   { href: "/planner", label: "Planner", icon: "ti-calendar" },
   { href: "/repository", label: "Exam Paper Repository", icon: "ti-files" },
