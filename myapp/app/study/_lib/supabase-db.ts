@@ -652,7 +652,7 @@ async function listRepositoryPapers(): Promise<any[]> {
   });
 }
 
-async function getCourseAnalytics(courseId: string, userId: string, courseName?: string): Promise<any> {
+async function getCourseAnalytics(courseId: string, userId: string, courseName?: string, enrichTopics: boolean = true): Promise<any> {
   var client = await getClient();
   var now = new Date();
   
@@ -755,7 +755,7 @@ async function getCourseAnalytics(courseId: string, userId: string, courseName?:
       }
 
       // Name fallback topics via LLM once, persist to the predictions rows so reloads are free
-      if (unnamed.length > 0) {
+      if (enrichTopics && unnamed.length > 0) {
         var questions = unnamed.map(function(u) { return u.qObj.question || ""; });
         var names = await aiNameTopics(questions, courseName || "this course");
         var patched: Record<string, any[]> = {};

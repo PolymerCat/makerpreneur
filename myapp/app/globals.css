@@ -2143,23 +2143,25 @@ input[type="range"] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid var(--line);
+  border: 1px solid var(--brand, #7c3aed);
   border-radius: 9999px;
-  background: var(--brand);
-  color: #fff;
+  background: var(--brand, #7c3aed);
+  color: #ffffff !important;
   cursor: pointer;
-  box-shadow: 2px 2px 0px var(--line);
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
   transition: all 0.2s ease;
 }
 .chat-send:hover:not(.disabled) {
-  background: var(--brand-deep);
-  transform: translate(-1px, -1px);
-  box-shadow: 3px 3px 0px var(--line);
+  background: var(--brand-deep, #6d28d9);
+  transform: scale(1.04);
+  box-shadow: 0 6px 16px rgba(124, 58, 237, 0.4);
 }
 .chat-send.disabled {
-  background: var(--line);
-  color: var(--muted);
+  background: #f1f5f9;
+  color: #94a3b8 !important;
+  border: 1px solid #e2e8f0;
   cursor: not-allowed;
+  box-shadow: none;
 }
 .chat-send .ti {
   font-size: 18px;

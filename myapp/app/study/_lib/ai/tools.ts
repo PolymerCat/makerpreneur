@@ -116,8 +116,29 @@ registerTool({
         return { ok: true, result: "No relevant content found in the course materials for: " + question };
       }
 
+      // Resolve the source file title once per material so citations name the
+      // actual file instead of a chunk number. Graceful if the lookup fails.
+      var titleMap: Record<string, string> = {};
+      try {
+        var ids = Array.from(new Set(winning.map(function(c) { return c.materialId; }).filter(Boolean)));
+        if (ids.length > 0) {
+          var supabase = await sdb.getClient();
+          var { data: mats } = await supabase.from("materials").select("id, title").in("id", ids);
+          if (mats) {
+            for (var mi = 0; mi < mats.length; mi++) {
+              titleMap[mats[mi].id] = mats[mi].title || "";
+            }
+          }
+        }
+      } catch (_err) {
+        /* citations fall back to a generic label */
+      }
+
       const formatted = winning
-        .map((c, i) => `[${i + 1}] ${c.text}`)
+        .map(function(c) {
+          var label = c.materialId && titleMap[c.materialId] ? titleMap[c.materialId] : "course material";
+          return "(from " + label + (c.page ? ", page " + c.page : "") + ") " + c.text;
+        })
         .join("\n\n");
 
       return {
@@ -447,7 +468,7 @@ registerTool({
   },
   run: async (_args, ctx) => {
     try {
-      const analytics = await sdb.getCourseAnalytics(ctx.subjectId, ctx.userId);
+      const analytics = await sdb.getCourseAnalytics(ctx.subjectId, ctx.userId, undefined, false);
       const urgentTopics = analytics.topics ? analytics.topics.filter((t: any) => t.isUrgent) : [];
       const urgentTopicsStr = urgentTopics.length > 0
         ? urgentTopics.map((t: any) => `  * ${t.name} (Mastery: ${t.mastery}%, PYQ Freq: ${t.pyqFrequency}%)`).join("\n")
@@ -655,15 +676,40 @@ registerTool({
       var days30 = new Date(Date.now() + 30 * 86400000).toISOString()
       var days7 = new Date(Date.now() + 7 * 86400000).toISOString()
 
-      // assignments
-      var { data: assigns } = await supabase
-        .from("assignments")
-        .select("title, subject, deadline, status")
-        .eq("user_id", ctx.userId)
-        .neq("status", "done")
-        .gte("deadline", now)
-        .lte("deadline", days30)
-        .order("deadline", { ascending: true })
+      // Six independent reads, run concurrently to cut tool latency.
+      var [assignRes, pEventRes, blockRes, regRes, saved, chats] = await Promise.all([
+        supabase
+          .from("assignments")
+          .select("title, subject, deadline, status")
+          .eq("user_id", ctx.userId)
+          .neq("status", "done")
+          .gte("deadline", now)
+          .lte("deadline", days30)
+          .order("deadline", { ascending: true }),
+        supabase
+          .from("planner_events")
+          .select("title, start_time, end_time, location, event_type")
+          .eq("user_id", ctx.userId)
+          .gte("start_time", now)
+          .lte("start_time", days14)
+          .order("start_time", { ascending: true }),
+        supabase
+          .from("schedule_blocks")
+          .select("title, kind, starts_at, ends_at")
+          .eq("user_id", ctx.userId)
+          .gte("starts_at", now)
+          .lte("starts_at", days7)
+          .order("starts_at", { ascending: true }),
+        supabase
+          .from("event_registrations")
+          .select("event_id, events:event_id(name, starts_at, ends_at, location)")
+          .eq("user_id", ctx.userId)
+          .eq("status", "registered"),
+        sdb.getSavedItemCount(ctx.userId),
+        sdb.getActiveChatCount(ctx.userId)
+      ])
+
+      var assigns = assignRes.data
       if (assigns && assigns.length > 0) {
         lines.push("ASSIGNMENTS DUE:")
         for (var i = 0; i < assigns.length; i++) {
@@ -676,13 +722,7 @@ registerTool({
       }
 
       // campus planner events
-      var { data: pEvents } = await supabase
-        .from("planner_events")
-        .select("title, start_time, end_time, location, event_type")
-        .eq("user_id", ctx.userId)
-        .gte("start_time", now)
-        .lte("start_time", days14)
-        .order("start_time", { ascending: true })
+      var pEvents = pEventRes.data
       if (pEvents && pEvents.length > 0) {
         lines.push("CAMPUS PLANNER:")
         for (var j = 0; j < pEvents.length; j++) {
@@ -697,13 +737,7 @@ registerTool({
       }
 
       // study schedule blocks
-      var { data: blocks } = await supabase
-        .from("schedule_blocks")
-        .select("title, kind, starts_at, ends_at")
-        .eq("user_id", ctx.userId)
-        .gte("starts_at", now)
-        .lte("starts_at", days7)
-        .order("starts_at", { ascending: true })
+      var blocks = blockRes.data
       if (blocks && blocks.length > 0) {
         lines.push("STUDY BLOCKS:")
         for (var k = 0; k < blocks.length; k++) {
@@ -717,11 +751,7 @@ registerTool({
       }
 
       // event registrations
-      var { data: regs } = await supabase
-        .from("event_registrations")
-        .select("event_id, events:event_id(name, starts_at, ends_at, location)")
-        .eq("user_id", ctx.userId)
-        .eq("status", "registered")
+      var regs = regRes.data
       var recorded: Record<string, boolean> = {}
       if (regs && regs.length > 0) {
         var regLines: string[] = []
@@ -749,9 +779,7 @@ registerTool({
         lines.push("EVENT REGISTRATIONS: none")
       }
 
-      // marketplace
-      var saved = await sdb.getSavedItemCount(ctx.userId)
-      var chats = await sdb.getActiveChatCount(ctx.userId)
+      // marketplace (fetched concurrently above)
       lines.push("MARKETPLACE: " + saved + " saved item" + (saved !== 1 ? "s" : "") + ", " + chats + " active chat" + (chats !== 1 ? "s" : ""))
 
       return { ok: true, result: lines.join("\n") }
