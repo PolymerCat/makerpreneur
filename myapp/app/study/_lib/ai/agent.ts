@@ -1,4 +1,4 @@
-import { llm } from "./gemini";
+import { llm, LlmUsage, SMALL_CHAT_SLOTS } from "./gemini";
 import { buildGeminiTools, executeTool, ToolCtx } from "./tools";
 import { GeminiImagePart } from "../chat-images";
 
@@ -102,6 +102,12 @@ export async function* runAgent(
 
   console.log(`[AGENT-START] User ID: ${userId || "anon"} | Subject: ${subjectId || "none"} | Question: "${question.slice(0, 60)}..."`);
 
+  // Route: classifier picks small fast models for simple chat, Gemini for
+  // tool-needed requests (flashcards, quiz, PDF, memory, retrieval...).
+  const route = await llm.classifyRoute(question);
+  const isToolPath = route === "tool";
+  console.log(`[AGENT-ROUTE] ${route.toUpperCase()}${isToolPath ? "" : " (small models)"}`);
+
   const ctx: ToolCtx = {
     userId,
     subjectId,
@@ -136,34 +142,33 @@ export async function* runAgent(
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     console.log(`[AGENT-TURN ${turn + 1}/${MAX_TURNS}] Querying LLM with ${messages.length} conversation parts...`);
-    const res = await llm.generateContent([...messages], {
-      tools,
+    const stream = llm.generateContentStreamWithTools([...messages], {
+      tools: isToolPath ? tools : [],
       temperature: 0.3,
-      task: "agent_probe"
+      task: isToolPath ? "agent_probe" : "agent_chat",
+      slots: isToolPath ? undefined : SMALL_CHAT_SLOTS
     });
 
-    if (res.usage) {
-      totalInputTokens += res.usage.inputTokens || 0;
-      totalOutputTokens += res.usage.outputTokens || 0;
+    let calls: any[] = [];
+    let lastUsage: LlmUsage | undefined;
+    for await (const ev of stream) {
+      if (ev.type === "text_delta" && ev.content) {
+        yield { type: "text", content: ev.content };
+      } else if (ev.type === "tool_calls") {
+        calls = ev.calls;
+        lastUsage = ev.usage;
+      } else if (ev.type === "end") {
+        lastUsage = ev.usage;
+      }
     }
 
-    const calls = res.functionCalls || [];
+    if (lastUsage) {
+      totalInputTokens += lastUsage.inputTokens || 0;
+      totalOutputTokens += lastUsage.outputTokens || 0;
+    }
 
     if (calls.length === 0) {
-      console.log(`[AGENT-RESPONSE] Turn ${turn + 1}: No tool calls requested. Streaming final response text (length: ${res.text ? res.text.length : 0}).`);
-      if (res.text && res.text.trim()) {
-        yield { type: "text", content: res.text };
-      } else {
-        const stream = llm.generateContentStream([...messages], {
-          temperature: 0.3,
-          task: "agent_stream"
-        });
-        for await (const chunk of stream) {
-          if (chunk) {
-            yield { type: "text", content: chunk };
-          }
-        }
-      }
+      console.log(`[AGENT-RESPONSE] Turn ${turn + 1}: No tool calls requested. Text streamed directly.`);
       yield { type: "done", toolCount };
       return;
     }

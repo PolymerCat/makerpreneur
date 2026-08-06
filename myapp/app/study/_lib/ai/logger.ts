@@ -25,9 +25,16 @@ const MODEL_RATES: Record<string, { in: number; out: number }> = {
   "google/gemma-4-31b-it:free": { in: 0, out: 0 },
   "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": { in: 0, out: 0 },
   "openai/gpt-oss-20b:free": { in: 0, out: 0 },
-  // Gemini via OpenRouter BYOK: 5% of OR list price, waived first 1M req/mo
-  "google/gemini-3.6-flash": { in: 0.01, out: 0.04 },
-  "google/gemini-3.5-flash": { in: 0.02, out: 0.08 },
+  // Gemini via OpenRouter (OR list price, verified against /models endpoint)
+  "google/gemini-3.6-flash": { in: 1.5, out: 7.5 },
+  "google/gemini-3.5-flash": { in: 1.5, out: 9.0 },
+  // ponytail: :nitro priced at ~1.5x list; over-estimates cost logging slightly
+  "google/gemini-3.6-flash:nitro": { in: 2.25, out: 11.25 },
+  "google/gemini-3.5-flash:nitro": { in: 2.25, out: 13.5 },
+  // Small fast chat models via OpenRouter
+  "openai/gpt-oss-120b:nitro": { in: 0.056, out: 0.26 },
+  "poolside/laguna-xs-2.1:nitro": { in: 0.09, out: 0.18 },
+  "inclusionai/ling-2.6-flash:nitro": { in: 0.015, out: 0.045 },
   // Direct Gemini (existing entries unchanged)
   "gemini-3.6-flash": { in: 0.15, out: 0.6 },   // USD per 1M tokens
   "gemini-3.5-flash": { in: 0.3, out: 1.2 },

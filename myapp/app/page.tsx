@@ -117,9 +117,13 @@ export default function DashboardPage() {
           var rawPlanner: CalendarEvent[] = await db.listAll("planner_events", { userId: userId }, "start_time");
           if (rawPlanner && rawPlanner.length > 0) {
             var monthExpanded = expandEvents(rawPlanner, now);
-            var todayYMD = now.toISOString().slice(0, 10);
             var todayItems = monthExpanded.filter(function(ev) {
-              return ev.start_time.slice(0, 10) === todayYMD;
+              var d = new Date(ev.start_time);
+              return (
+                d.getFullYear() === now.getFullYear() &&
+                d.getMonth() === now.getMonth() &&
+                d.getDate() === now.getDate()
+              );
             });
             setTodayPlannerEvents(todayItems);
           }

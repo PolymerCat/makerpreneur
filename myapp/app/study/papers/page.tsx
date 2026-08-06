@@ -256,7 +256,7 @@ export default function PapersPage() {
 
       {activeTab === "generator" && (
         <Card>
-          <h3>Generate Bilingual USM Exam PDF</h3>
+          <h3>Generate Exam PDF</h3>
           <p style={{marginBottom: "1rem", color: "var(--text-secondary)"}}>
             Select reference past exam papers below. All uploaded course materials are silently included as the knowledge base syllabus.
           </p>
@@ -271,7 +271,7 @@ export default function PapersPage() {
 
           <div style={{ marginTop: "1.5rem" }}>
             <button className="btn btn-primary" onClick={handleGeneratePdf} disabled={generating || selectedIds.length === 0}>
-              {generating ? "Generating Exam PDF (Takes a minute)..." : "Generate Bilingual USM Exam PDF"}
+              {generating ? "Generating Exam PDF (Takes a minute)..." : "Generate Exam PDF"}
             </button>
           </div>
         </Card>
