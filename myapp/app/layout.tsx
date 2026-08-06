@@ -5,7 +5,7 @@ import { AuthProvider } from "@/lib/auth-context";
 
 export const metadata: Metadata = {
   title: "StudentHub USM",
-  description: "A React and TypeScript recreation of the StudentHub USM sample prototype.",
+  description: "StudentHub USM: classes, study tools, campus events, and a peer marketplace.",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

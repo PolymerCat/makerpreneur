@@ -3,13 +3,15 @@ import type { CalendarEvent, CampusEvent, FeedItem, Metric, NavItem, Person, Res
 // Temporary seed data. Later, replace these exports with Supabase queries that return the same shapes.
 export const navItems: NavItem[] = [
   { href: "/", label: "Home", icon: "ti-home" },
-  { href: "/community", label: "Community", icon: "ti-users" },
   { href: "/study", label: "Study", icon: "ti-school" },
   { href: "/events", label: "MyCSD", icon: "ti-confetti" },
   { href: "/campus", label: "Campus", icon: "ti-building" },
   { href: "/transit", label: "Transit", icon: "ti-bus" },
+  { href: "/marketplace", label: "Marketplace", icon: "ti-shopping-cart" },
   { href: "/profile", label: "Profile", icon: "ti-user" },
   { href: "/planner", label: "Planner", icon: "ti-calendar" },
+  { href: "/repository", label: "Exam Paper Repository", icon: "ti-files" },
+  { href: "https://wmw-usm.netlify.app/", label: "Find Water", icon: "ti-droplet" },
 ];
 
 export const dashboardMetrics: Metric[] = [

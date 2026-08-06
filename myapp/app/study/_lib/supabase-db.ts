@@ -42,13 +42,21 @@ var COLUMN_MAP: Record<string, Record<string, string>> = {
   papers:       { courseId: "course_id", fileUrl: "file_url", extractedText: "extracted_text" },
   study_plans:  { courseId: "course_id", examDate: "exam_date" },
   plan_days:    { planId: "plan_id", dayNumber: "day_number" },
-  schedule_blocks: { startsAt: "starts_at", endsAt: "ends_at" },
+  schedule_blocks: { userId: "user_id", startsAt: "starts_at", endsAt: "ends_at" },
   predictions:  { courseId: "course_id", createdAt: "created_at", freqJson: "freq_json", questionsJson: "questions_json", studiedIds: "studied_ids" },
   generated_exams: { courseId: "course_id", courseCode: "course_code", fileUrl: "file_url", questionsJson: "questions_json", createdAt: "created_at" },
+  faculties: { createdBy: "created_by", createdAt: "created_at" },
+  repository_courses: { facultyId: "faculty_id", courseCode: "course_code", courseName: "course_name", createdBy: "created_by", createdAt: "created_at" },
+  repository_papers: { courseId: "course_id", fileUrl: "file_url", fileType: "file_type", fileSize: "file_size", extractedText: "extracted_text", uploadedBy: "uploaded_by", uploadedByName: "uploaded_by_name", createdAt: "created_at" },
   search_index: { materialId: "material_id", indexData: "index_data" },
   conversations: { userId: "user_id", createdAt: "created_at", updatedAt: "updated_at" },
   messages: { conversationId: "conversation_id", createdAt: "created_at" },
-  memories: { userId: "user_id", courseId: "course_id", conversationId: "conversation_id", createdAt: "created_at", updatedAt: "updated_at" }
+  memories: { userId: "user_id", courseId: "course_id", conversationId: "conversation_id", createdAt: "created_at", updatedAt: "updated_at" },
+  events: { createdBy: "created_by", startsAt: "starts_at", endsAt: "ends_at", imageUrl: "image_url", registrationDeadline: "registration_deadline", formFields: "form_fields", registeredCount: "registered_count", createdAt: "created_at", updatedAt: "updated_at" },
+  event_registrations: { eventId: "event_id", userId: "user_id", createdAt: "created_at", updatedAt: "updated_at" },
+  assignments: { userId: "user_id", createdAt: "created_at", updatedAt: "updated_at" },
+  profiles: { fullName: "full_name", matricNumber: "matric_number", preferredLanguage: "preferred_language", mycsdPoints: "mycsd_points", createdAt: "created_at", updatedAt: "updated_at" },
+  planner_events: { userId: "user_id", createdAt: "created_at", updatedAt: "updated_at" }
 };
 
 function toSnake(table: string, data: any): any {
@@ -602,6 +610,48 @@ function getPublicUrl(bucket: string, path: string): string {
   return data.publicUrl;
 }
 
+async function deleteStorageObject(bucket: string, path: string): Promise<void> {
+  var client = await getClient();
+  var { error } = await client.storage.from(bucket).remove([path]);
+  if (error) {
+    throw new Error("deleteStorageObject: " + error.message);
+  }
+}
+
+/* --- Exam Paper Repository helpers --- */
+
+async function listRepositoryPapers(): Promise<any[]> {
+  var client = await getClient();
+  var result = await client
+    .from("repository_papers")
+    .select("*, repository_courses(faculty_id, course_code, course_name)")
+    .order("created_at", { ascending: false });
+  if (result.error) {
+    throw new Error("listRepositoryPapers: " + result.error.message);
+  }
+  return (result.data || []).map(function(row: any) {
+    var course = row.repository_courses || {};
+    return {
+      id: row.id,
+      courseId: row.course_id,
+      title: row.title,
+      year: row.year,
+      semester: row.semester,
+      fileUrl: row.file_url,
+      fileType: row.file_type,
+      fileSize: row.file_size,
+      tags: row.tags || [],
+      extractedText: row.extracted_text,
+      uploadedBy: row.uploaded_by,
+      uploadedByName: row.uploaded_by_name,
+      createdAt: row.created_at,
+      facultyId: course.faculty_id,
+      courseCode: course.course_code,
+      courseName: course.course_name
+    };
+  });
+}
+
 async function getCourseAnalytics(courseId: string, userId: string, courseName?: string): Promise<any> {
   var client = await getClient();
   var now = new Date();
@@ -1015,6 +1065,65 @@ async function enrichPastQuestions(courseId: string, courseName: string, topics:
   return topics;
 }
 
+async function countAssignmentsDue(userId: string, days: number): Promise<{ count: number; nextTitle: string; nextDeadline: string }> {
+  var client = await getClient()
+  var deadline = new Date()
+  deadline.setDate(deadline.getDate() + days)
+  var now = new Date().toISOString()
+  var end = deadline.toISOString()
+  var { data, count } = await client
+    .from("assignments")
+    .select("id, title, deadline", { count: "exact" })
+    .eq("user_id", userId)
+    .neq("status", "done")
+    .gte("deadline", now)
+    .lte("deadline", end)
+    .order("deadline", { ascending: true })
+    .limit(1)
+  var nextTitle = ""
+  var nextDeadline = ""
+  if (data && data.length > 0) {
+    nextTitle = data[0].title || ""
+    nextDeadline = data[0].deadline || ""
+  }
+  return { count: count || 0, nextTitle: nextTitle, nextDeadline: nextDeadline }
+}
+
+async function countDueCards(courseId: string): Promise<{ cardCount: number; deckCount: number }> {
+  var client = await getClient()
+  var { data: mats } = await client.from("materials").select("id").eq("course_id", courseId)
+  if (!mats || mats.length === 0) return { cardCount: 0, deckCount: 0 }
+  var matIds = mats.map(function(m: any) { return m.id })
+  var { data: decks } = await client.from("decks").select("id").in("material_id", matIds)
+  if (!decks || decks.length === 0) return { cardCount: 0, deckCount: 0 }
+  var deckIds = decks.map(function(d: any) { return d.id })
+  var now = new Date().toISOString()
+  var { count } = await client
+    .from("cards")
+    .select("id", { count: "exact", head: true })
+    .in("deck_id", deckIds)
+    .lte("due_date", now)
+  return { cardCount: count || 0, deckCount: deckIds.length }
+}
+
+async function getSavedItemCount(userId: string): Promise<number> {
+  var client = await getClient()
+  var { count } = await client
+    .from("cart_items")
+    .select("product_id", { count: "exact", head: true })
+    .eq("user_id", userId)
+  return count || 0
+}
+
+async function getActiveChatCount(userId: string): Promise<number> {
+  var client = await getClient()
+  var { count } = await client
+    .from("chats")
+    .select("id", { count: "exact", head: true })
+    .contains("users", [userId])
+  return count || 0
+}
+
 export var sdb = {
   getClient: getClient,
   insert: insert,
@@ -1047,6 +1156,12 @@ export var sdb = {
   cacheChunks: cacheChunks,
   uploadFile: uploadFile,
   getPublicUrl: getPublicUrl,
-  getCourseAnalytics: getCourseAnalytics
+  deleteStorageObject: deleteStorageObject,
+  listRepositoryPapers: listRepositoryPapers,
+  getCourseAnalytics: getCourseAnalytics,
+  countAssignmentsDue: countAssignmentsDue,
+  countDueCards: countDueCards,
+  getSavedItemCount: getSavedItemCount,
+  getActiveChatCount: getActiveChatCount
 };
 

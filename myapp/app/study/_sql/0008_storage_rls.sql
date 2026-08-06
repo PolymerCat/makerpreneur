@@ -10,7 +10,7 @@ drop policy if exists "Materials are publicly accessible" on storage.objects;
 drop policy if exists "Authenticated users can upload materials" on storage.objects;
 drop policy if exists "Authenticated users can delete own materials" on storage.objects;
 
--- Create policies allowing full public access to materials bucket
+-- Create policies allowing full public access to materials buckettttttt
 create policy "Allow public read on materials bucket"
   on storage.objects for select to public
   using ( bucket_id = 'materials' );

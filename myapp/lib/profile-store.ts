@@ -8,6 +8,7 @@ export type Profile = {
   matric_number: string;
   preferred_language: "en" | "bm";
   role: "student" | "admin";
+  mycsd_points?: number;
   created_at: string;
   updated_at: string;
 };
@@ -42,6 +43,7 @@ export function upsertProfile(
       matric_number: data.matric_number ?? "",
       preferred_language: data.preferred_language ?? "en",
       role: data.role ?? "student",
+      mycsd_points: data.mycsd_points ?? 0,
       created_at: now,
       updated_at: now,
     };

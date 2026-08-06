@@ -635,6 +635,132 @@ registerTool({
   }
 });
 
+/* 11. get_upcoming_deadlines */
+registerTool({
+  name: "get_upcoming_deadlines",
+  description: "Get the student's upcoming deadlines across assignments, study schedule blocks, campus planner events, event registrations, and marketplace — everything they need to know about what is due or coming up.",
+  parameters: {
+    type: "OBJECT",
+    properties: {},
+    required: []
+  },
+  run: async (_args, ctx) => {
+    try {
+      if (!ctx.userId) return { ok: true, result: "Sign in to see upcoming deadlines." }
+
+      var supabase = await sdb.getClient()
+      var lines: string[] = []
+      var now = new Date().toISOString()
+      var days14 = new Date(Date.now() + 14 * 86400000).toISOString()
+      var days30 = new Date(Date.now() + 30 * 86400000).toISOString()
+      var days7 = new Date(Date.now() + 7 * 86400000).toISOString()
+
+      // assignments
+      var { data: assigns } = await supabase
+        .from("assignments")
+        .select("title, subject, deadline, status")
+        .eq("user_id", ctx.userId)
+        .neq("status", "done")
+        .gte("deadline", now)
+        .lte("deadline", days30)
+        .order("deadline", { ascending: true })
+      if (assigns && assigns.length > 0) {
+        lines.push("ASSIGNMENTS DUE:")
+        for (var i = 0; i < assigns.length; i++) {
+          var a = assigns[i]
+          var dd = new Date(a.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+          lines.push("  " + a.title + (a.subject ? " | " + a.subject : "") + " · due " + dd + " · " + a.status)
+        }
+      } else {
+        lines.push("ASSIGNMENTS DUE: none")
+      }
+
+      // campus planner events
+      var { data: pEvents } = await supabase
+        .from("planner_events")
+        .select("title, start_time, end_time, location, event_type")
+        .eq("user_id", ctx.userId)
+        .gte("start_time", now)
+        .lte("start_time", days14)
+        .order("start_time", { ascending: true })
+      if (pEvents && pEvents.length > 0) {
+        lines.push("CAMPUS PLANNER:")
+        for (var j = 0; j < pEvents.length; j++) {
+          var pe = pEvents[j]
+          var ps = new Date(pe.start_time).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+          var pt = new Date(pe.start_time).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
+          var loc = pe.location ? " · " + pe.location : ""
+          lines.push("  " + pe.title + " (" + pe.event_type + ") · " + ps + " " + pt + loc)
+        }
+      } else {
+        lines.push("CAMPUS PLANNER: none")
+      }
+
+      // study schedule blocks
+      var { data: blocks } = await supabase
+        .from("schedule_blocks")
+        .select("title, kind, starts_at, ends_at")
+        .eq("user_id", ctx.userId)
+        .gte("starts_at", now)
+        .lte("starts_at", days7)
+        .order("starts_at", { ascending: true })
+      if (blocks && blocks.length > 0) {
+        lines.push("STUDY BLOCKS:")
+        for (var k = 0; k < blocks.length; k++) {
+          var sb = blocks[k]
+          var sbs = new Date(sb.starts_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+          var sbt = new Date(sb.starts_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
+          lines.push("  " + sb.title + " (" + sb.kind + ") · " + sbs + " " + sbt)
+        }
+      } else {
+        lines.push("STUDY BLOCKS: none")
+      }
+
+      // event registrations
+      var { data: regs } = await supabase
+        .from("event_registrations")
+        .select("event_id, events:event_id(name, starts_at, ends_at, location)")
+        .eq("user_id", ctx.userId)
+        .eq("status", "registered")
+      var recorded: Record<string, boolean> = {}
+      if (regs && regs.length > 0) {
+        var regLines: string[] = []
+        for (var r = 0; r < regs.length; r++) {
+          var reg = regs[r]
+          var ev = Array.isArray(reg.events) ? reg.events[0] : reg.events
+          if (!ev || !ev.starts_at) continue
+          if (ev.starts_at < now || ev.starts_at > days14) continue
+          var key = ev.name + ev.starts_at
+          if (recorded[key]) continue
+          recorded[key] = true
+          var es = new Date(ev.starts_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+          var et = new Date(ev.starts_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
+          regLines.push("  " + ev.name + " · " + es + " " + et + (ev.location ? " · " + ev.location : ""))
+        }
+        if (regLines.length > 0) {
+          lines.push("EVENT REGISTRATIONS:")
+          for (var rl = 0; rl < regLines.length; rl++) {
+            lines.push(regLines[rl])
+          }
+        } else {
+          lines.push("EVENT REGISTRATIONS: none upcoming")
+        }
+      } else {
+        lines.push("EVENT REGISTRATIONS: none")
+      }
+
+      // marketplace
+      var saved = await sdb.getSavedItemCount(ctx.userId)
+      var chats = await sdb.getActiveChatCount(ctx.userId)
+      lines.push("MARKETPLACE: " + saved + " saved item" + (saved !== 1 ? "s" : "") + ", " + chats + " active chat" + (chats !== 1 ? "s" : ""))
+
+      return { ok: true, result: lines.join("\n") }
+    } catch (err: any) {
+      return { ok: false, error: "get_upcoming_deadlines error: " + (err.message || String(err)) }
+    }
+  }
+});
+
 export function buildGeminiTools() {
   const declarations = Object.values(toolsRegistry).map((tool) => ({
     name: tool.name,
