@@ -43,7 +43,7 @@ export default function CartPage() {
     <div style={{ maxWidth: 760, margin: "0 auto", width: "100%" }}>
       <h1 style={{ marginBottom: 4 }}>Saved for later ({cartCount})</h1>
       <p style={{ color: "var(--muted)", marginTop: 0 }}>
-        Message the seller to buy. Deals are arranged in chat — the seller shares their own bank
+        Message the seller to buy. Deals are arranged in chat. The seller shares their own bank
         or QR. Marketplace does not process payments.
       </p>
       <div className="stack">

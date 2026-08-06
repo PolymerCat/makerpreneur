@@ -34,7 +34,7 @@ function formatWhen(iso: string, endsIso?: string | null): string {
     hour: "2-digit",
     minute: "2-digit",
   });
-  return startStr + " – " + endStr;
+  return startStr + " to " + endStr;
 }
 
 function statusTone(status: EventRegistrationStatus): "brand" | "success" | "warning" | "neutral" {

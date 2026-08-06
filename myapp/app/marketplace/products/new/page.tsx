@@ -207,7 +207,7 @@ export default function NewProductPage() {
         description:
           result.method === "native"
             ? "Listing ready to send in WhatsApp or Telegram."
-            : "Link copied — paste into WhatsApp or Telegram.",
+            : "Link copied. Paste it into WhatsApp or Telegram.",
       });
       return;
     }

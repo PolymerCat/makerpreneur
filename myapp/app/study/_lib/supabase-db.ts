@@ -1065,6 +1065,65 @@ async function enrichPastQuestions(courseId: string, courseName: string, topics:
   return topics;
 }
 
+async function countAssignmentsDue(userId: string, days: number): Promise<{ count: number; nextTitle: string; nextDeadline: string }> {
+  var client = await getClient()
+  var deadline = new Date()
+  deadline.setDate(deadline.getDate() + days)
+  var now = new Date().toISOString()
+  var end = deadline.toISOString()
+  var { data, count } = await client
+    .from("assignments")
+    .select("id, title, deadline", { count: "exact" })
+    .eq("user_id", userId)
+    .neq("status", "done")
+    .gte("deadline", now)
+    .lte("deadline", end)
+    .order("deadline", { ascending: true })
+    .limit(1)
+  var nextTitle = ""
+  var nextDeadline = ""
+  if (data && data.length > 0) {
+    nextTitle = data[0].title || ""
+    nextDeadline = data[0].deadline || ""
+  }
+  return { count: count || 0, nextTitle: nextTitle, nextDeadline: nextDeadline }
+}
+
+async function countDueCards(courseId: string): Promise<{ cardCount: number; deckCount: number }> {
+  var client = await getClient()
+  var { data: mats } = await client.from("materials").select("id").eq("course_id", courseId)
+  if (!mats || mats.length === 0) return { cardCount: 0, deckCount: 0 }
+  var matIds = mats.map(function(m: any) { return m.id })
+  var { data: decks } = await client.from("decks").select("id").in("material_id", matIds)
+  if (!decks || decks.length === 0) return { cardCount: 0, deckCount: 0 }
+  var deckIds = decks.map(function(d: any) { return d.id })
+  var now = new Date().toISOString()
+  var { count } = await client
+    .from("cards")
+    .select("id", { count: "exact", head: true })
+    .in("deck_id", deckIds)
+    .lte("due_date", now)
+  return { cardCount: count || 0, deckCount: deckIds.length }
+}
+
+async function getSavedItemCount(userId: string): Promise<number> {
+  var client = await getClient()
+  var { count } = await client
+    .from("cart_items")
+    .select("product_id", { count: "exact", head: true })
+    .eq("user_id", userId)
+  return count || 0
+}
+
+async function getActiveChatCount(userId: string): Promise<number> {
+  var client = await getClient()
+  var { count } = await client
+    .from("chats")
+    .select("id", { count: "exact", head: true })
+    .contains("users", [userId])
+  return count || 0
+}
+
 export var sdb = {
   getClient: getClient,
   insert: insert,
@@ -1099,6 +1158,10 @@ export var sdb = {
   getPublicUrl: getPublicUrl,
   deleteStorageObject: deleteStorageObject,
   listRepositoryPapers: listRepositoryPapers,
-  getCourseAnalytics: getCourseAnalytics
+  getCourseAnalytics: getCourseAnalytics,
+  countAssignmentsDue: countAssignmentsDue,
+  countDueCards: countDueCards,
+  getSavedItemCount: getSavedItemCount,
+  getActiveChatCount: getActiveChatCount
 };
 
