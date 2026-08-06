@@ -18,6 +18,15 @@ export function MainNav({ items, onNavigate }: MainNavProps) {
       {items.map((item) => {
         const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
 
+        if (item.href.startsWith("http")) {
+          return (
+            <a href={item.href} key={item.href} target="_blank" rel="noopener noreferrer" onClick={onNavigate}>
+              <Icon name={item.icon} />
+              <span>{item.label}</span>
+            </a>
+          );
+        }
+
         return (
           <Link className={isActive ? "active" : ""} href={item.href} key={item.href} onClick={onNavigate}>
             <Icon name={item.icon} />

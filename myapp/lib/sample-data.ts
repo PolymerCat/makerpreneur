@@ -6,9 +6,11 @@ export const navItems: NavItem[] = [
   { href: "/study", label: "Study", icon: "ti-school" },
   { href: "/events", label: "MyCSD", icon: "ti-confetti" },
   { href: "/campus", label: "Campus", icon: "ti-building" },
+  { href: "/marketplace", label: "Marketplace", icon: "ti-shopping-cart" },
   { href: "/profile", label: "Profile", icon: "ti-user" },
   { href: "/planner", label: "Planner", icon: "ti-calendar" },
   { href: "/repository", label: "Exam Paper Repository", icon: "ti-files" },
+  { href: "https://wmw-usm.netlify.app/", label: "Find Water", icon: "ti-droplet" },
 ];
 
 export const dashboardMetrics: Metric[] = [
