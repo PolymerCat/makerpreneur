@@ -54,7 +54,7 @@ export default function ProfilePage() {
       <PageHero
         eyebrow="Profile"
         title={profile?.full_name || user?.email || "Profile"}
-        description="Edit your profile. Changes are synced to the Supabase profiles table."
+        description="Edit your profile. Changes are saved to your account."
         icon="ti-user"
       />
       <section className="two-column">

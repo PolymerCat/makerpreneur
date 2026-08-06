@@ -6,6 +6,45 @@ import { aiChat } from "../../actions";
 import { retrieveChunks } from "../../_lib/ai/retrieve";
 import { sdb, setServerClientGetter } from "../../_lib/supabase-db";
 
+async function buildActivitySnapshot(
+  userId: string,
+  courseId: string
+): Promise<string> {
+  try {
+    var blocks: string[] = []
+    blocks.push("TODAY SNAPSHOT (auto, may be stale):")
+
+    if (userId) {
+      var assign = await sdb.countAssignmentsDue(userId, 7)
+      if (assign.count > 0) {
+        var dd = ""
+        if (assign.nextDeadline) {
+          dd = new Date(assign.nextDeadline).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+        }
+        blocks.push("  Assignments due in next 7 days: " + assign.count + " (next: " + assign.nextTitle + " on " + dd + ")")
+      } else {
+        blocks.push("  Assignments due in next 7 days: none")
+      }
+
+      if (courseId) {
+        var cards = await sdb.countDueCards(courseId)
+        blocks.push("  Flashcards due today: " + cards.cardCount + " across " + cards.deckCount + " decks")
+      }
+
+      var saved = await sdb.getSavedItemCount(userId)
+      var chats = await sdb.getActiveChatCount(userId)
+      blocks.push("  Marketplace: " + saved + " saved items, " + chats + " active chats")
+    } else {
+      blocks.push("  Sign in to see personalized deadlines and activity.")
+    }
+
+    return blocks.join("\n")
+  } catch (err) {
+    console.error("[CHAT-ROUTE] Activity snapshot error:", err)
+    return ""
+  }
+}
+
 async function buildInjectedContext(
   userId: string,
   courseId: string
@@ -13,6 +52,17 @@ async function buildInjectedContext(
   try {
     var supabase = await createServerSupabaseClient();
     var blocks: string[] = [];
+
+    if (userId) {
+      var { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", userId)
+        .single();
+      if (profile?.full_name) {
+        blocks.push("Student: " + profile.full_name);
+      }
+    }
 
     if (courseId) {
       var { data: subject } = await supabase
@@ -47,6 +97,11 @@ async function buildInjectedContext(
       .map(function(m) { return "- [" + m.type + "] " + m.content; });
     if (memoryLines.length > 0) {
       blocks.push("Student memories:\n" + memoryLines.join("\n"));
+    }
+
+    var snapshot = await buildActivitySnapshot(userId, courseId);
+    if (snapshot) {
+      blocks.push(snapshot);
     }
 
     return blocks.join("\n");

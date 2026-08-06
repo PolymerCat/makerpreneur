@@ -21,7 +21,7 @@ export default async function MarketplaceHome() {
       <PageHero
         eyebrow="USM Marketplace"
         title="Campus secondhand marketplace"
-        description="Browse campus listings, message sellers to arrange deals, and pay them directly — no payment gateway."
+        description="Browse campus listings, message sellers to arrange deals, and pay them directly. No payment gateway involved."
       />
 
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>

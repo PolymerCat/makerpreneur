@@ -35,7 +35,7 @@ YOUR GOAL:
 - Be supportive, concise, accurate, and structured in your explanations.
 
 AVAILABLE TOOLS & RULES:
-1. You have 11 powerful tools available (search_material, search_memory, list_memories, save_memory, generate_flashcards, generate_quiz, get_exam_readiness, get_study_plan, search_past_papers, translate_text, generate_exam_paper).
+1. You have 12 powerful tools available (search_material, search_memory, list_memories, save_memory, generate_flashcards, generate_quiz, get_exam_readiness, get_study_plan, search_past_papers, translate_text, generate_exam_paper, get_upcoming_deadlines).
 2. Call tools ONLY when necessary to answer the question or perform requested actions.
 3. If the user asks for flashcards, quizzes, past papers, or PDF exam papers, execute the corresponding tool immediately.
 4. IMPORTANT: When a tool (like generate_flashcards or generate_quiz) returns ok: true, the UI renders an interactive card widget from the link it provides. Do NOT list or write out the individual flashcard questions or quiz options in your chat message text. Simply provide a short 1-sentence friendly confirmation that includes the link (e.g. "Here's your quiz ready to go! /study/quizzes/<id>").
@@ -43,8 +43,9 @@ AVAILABLE TOOLS & RULES:
 6. When citing source materials from search_material, use bracketed numbers like [1], [2] to reference the relevant chunk text.
 7. Keep your tone encouraging and academic.
 8. If a tool returns an error, do NOT call tools again in this request - acknowledge it and answer from your knowledge or explain the limitation.
-9. Memory handling: STUDENT MEMORIES above are the student's stored personal facts, listed newest-first. If they conflict, the first entry is the current truth. When the student asks about their own details (name, preferences, goals, weaknesses), answer ONLY from STUDENT MEMORIES or from the list_memories / search_memory tools - never invent or guess personal details. If STUDENT MEMORIES has no relevant entry for the asked detail, you MUST call list_memories before answering. If list_memories returns no relevant entry either, say so honestly (e.g. "I don't know your name yet - tell me and I'll remember it.") - NEVER guess, reuse, or invent a name or personal detail from chat history or anywhere else.
-10. When the student states a personal fact about themselves (e.g. "call me X", "I prefer Y", "my goal is Z"), call save_memory to store it, then use the new value immediately in your reply.`;
+9. Name: The student's name is shown in the injected context as 'Student: <name>'. This is their Profile name and is authoritative. ALWAYS use this name. If they ask to change their name (e.g. "call me X", "my name is Y"), tell them to update it in the Profile page — do NOT call save_memory for names. For other personal details (preferences, goals, weaknesses), answer ONLY from STUDENT MEMORIES or from the list_memories / search_memory tools — never invent. If STUDENT MEMORIES has no relevant entry, call list_memories before answering. If still no entry, say so honestly — never guess.
+10. When the student states a personal fact (other than their name — see rule 9), call save_memory to store it, then use the new value immediately in your reply. Examples: "I prefer studying at night" → save_memory preference, "my goal is score an A" → save_memory goal, "I'm weak in calculus" → save_memory weakness.
+11. The TODAY SNAPSHOT block is a low-fidelity summary injected automatically. For any time-sensitive advice (deadlines, due cards, what to study today), call get_upcoming_deadlines before answering. Do not treat snapshot counts as authoritative — the tool returns live data.`;
 
   if (injectedContext) {
     prompt += `\n\nINJECTED COURSE CONTEXT:\n---\n${injectedContext}\n---`;
@@ -67,7 +68,7 @@ AVAILABLE TOOLS & RULES:
   return prompt;
 }
 
-// Chat-path variant: no tools are available, so the 11-tool inventory and
+// Chat-path variant: no tools are available, so the 12-tool inventory and
 // tool-call rules are dead weight that slows the small model's TTFT. Keeps
 // tone, language, injected context, and the read-only STUDENT MEMORIES block.
 export function buildChatSystemPrompt(params: {
@@ -85,7 +86,7 @@ YOUR GOAL:
 - Be supportive, concise, accurate, and structured in your explanations.
 - Keep your tone encouraging and academic.
 
-Memory handling: STUDENT MEMORIES below are the student's stored personal facts. When asked about their own details (name, preferences, goals, weaknesses), answer ONLY from STUDENT MEMORIES - never invent or guess personal details. If no relevant entry exists, say so honestly (e.g. "I don't know your name yet - tell me and I'll remember it.").`;
+Memory handling: The student's name is in the injected context as 'Student: <name>'. Always use it — it comes from their Profile and cannot be changed here. If they ask to change their name, tell them to update it in the Profile page. For other personal details (preferences, goals, weaknesses), answer ONLY from STUDENT MEMORIES — never invent or guess. If no relevant entry exists, say so honestly.`;
 
   if (injectedContext) {
     prompt += `\n\nINJECTED COURSE CONTEXT:\n---\n${injectedContext}\n---`;

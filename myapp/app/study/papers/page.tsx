@@ -319,7 +319,7 @@ export default function PapersPage() {
                   return (
                     <div key={pred.id} className={"saved-prediction" + (activePredictionId === pred.id ? " active" : "")}>
                       <button className="btn btn-sm" onClick={function() { handleSelectSaved(pred.id); }}>
-                        {new Date(pred.createdAt).toLocaleDateString()} — {qCount} questions
+                        {new Date(pred.createdAt).toLocaleDateString()} · {qCount} questions
                       </button>
                       <button className="btn btn-sm btn-ghost" onClick={function() { handleDeletePrediction(pred.id); }}>
                         Delete
