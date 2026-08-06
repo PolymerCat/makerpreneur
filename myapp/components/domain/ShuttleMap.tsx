@@ -1,21 +1,17 @@
 "use client";
 
 import L from "leaflet";
-import { MapContainer, TileLayer, Marker, Popup, Polyline } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, GeoJSON } from "react-leaflet";
+import type { GeoJsonObject } from "geojson";
+import routeData from "@/lib/data/roadmap.json";
+
+var usmRoute = routeData as unknown as GeoJsonObject;
 
 var USM_CENTER: [number, number] = [5.3571, 100.2936];
 
-var SHUTTLE_ROUTE: [number, number][] = [
-  [5.3525, 100.299],
-  [5.355, 100.295],
-  [5.3571, 100.2936],
-  [5.359, 100.2915],
-  [5.3615, 100.2895],
-];
-
 var BUS_STOPS: [number, number][] = [
-  [5.355, 100.295],
-  [5.359, 100.2915],
+  [5.3605, 100.2945],
+  [5.355, 100.2965],
 ];
 
 var busIcon = L.divIcon({
@@ -45,9 +41,9 @@ export function ShuttleMap() {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <Polyline
-          positions={SHUTTLE_ROUTE}
-          pathOptions={{ color: "#6b21a8", weight: 4, dashArray: "6 8" }}
+        <GeoJSON
+          data={usmRoute}
+          style={{ color: "red", weight: 4, opacity: 1 }}
         />
         {BUS_STOPS.map(function (pos, i) {
           return (
