@@ -15,7 +15,7 @@ insert into public.events (
   registered_count
 ) values
 
--- Past events (already happened: good for the "attended / points" demo)
+-- Past events (already happened: good for the "attended / points" demo))))
 (
   (select id from auth.users order by created_at limit 1),
   'AI Career Day Kickoff',

@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { toOpenAITools, toOpenAIMessages, parseOpenAIChat, parseSSEChunk, parseJsonRepair } from "./gemini";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { toOpenAITools, toOpenAIMessages, parseOpenAIChat, parseSSEChunk, parseJsonRepair, llm } from "./gemini";
 
 describe("toOpenAITools", () => {
   it("converts functionDeclarations into OpenAI function tools", () => {
@@ -13,7 +13,7 @@ describe("toOpenAITools", () => {
     expect(out).toHaveLength(2);
     expect(out[0]).toEqual({
       type: "function",
-      function: { name: "search_material", description: "Search materials", parameters: { type: "OBJECT", properties: { q: { type: "STRING" } } } }
+      function: { name: "search_material", description: "Search materials", parameters: { type: "object", properties: { q: { type: "string" } } } }
     });
     expect(out[1].function.name).toBe("generate_flashcards");
   });
@@ -21,6 +21,27 @@ describe("toOpenAITools", () => {
   it("returns [] for falsy input", () => {
     expect(toOpenAITools(undefined as any)).toEqual([]);
     expect(toOpenAITools([])).toEqual([]);
+  });
+
+  it("lowercases Gemini uppercase type enums to OpenAI lowercase schema types", () => {
+    const out = toOpenAITools([
+      { functionDeclarations: [
+        { name: "save_memory", description: "Save memory", parameters: {
+          type: "OBJECT",
+          properties: {
+            content: { type: "STRING" },
+            tags: { type: "ARRAY", items: { type: "STRING" } }
+          },
+          required: ["content"]
+        } }
+      ] }
+    ]);
+    const p = out[0].function.parameters;
+    expect(p.type).toBe("object");
+    expect(p.properties.content.type).toBe("string");
+    expect(p.properties.tags.type).toBe("array");
+    expect(p.properties.tags.items.type).toBe("string");
+    expect(p.required).toEqual(["content"]);
   });
 });
 
@@ -127,6 +148,67 @@ describe("parseSSEChunk", () => {
   });
 });
 
+describe("classifyRoute", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  function mockClassifierReply(text: string) {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ choices: [{ message: { content: text } }], usage: { prompt_tokens: 5, completion_tokens: 2 } })
+    }));
+  }
+
+  function mockFetchCalls(): number {
+    const fn = vi.mocked(fetch);
+    return fn.mock.calls.length;
+  }
+
+  it("keyword layer: routes greetings to chat without any LLM call", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key");
+    vi.stubGlobal("fetch", vi.fn());
+    await expect(llm.classifyRoute("hi")).resolves.toBe("chat");
+    await expect(llm.classifyRoute("hello there")).resolves.toBe("chat");
+    await expect(llm.classifyRoute("thanks")).resolves.toBe("chat");
+    expect(mockFetchCalls()).toBe(0);
+  });
+
+  it("keyword layer: routes explicit tool verbs to tool without any LLM call", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key");
+    vi.stubGlobal("fetch", vi.fn());
+    await expect(llm.classifyRoute("make me flashcards on physics")).resolves.toBe("tool");
+    await expect(llm.classifyRoute("generate a quiz on biology")).resolves.toBe("tool");
+    await expect(llm.classifyRoute("translate hi to malay")).resolves.toBe("tool");
+    await expect(llm.classifyRoute("search my notes for X")).resolves.toBe("tool");
+    expect(mockFetchCalls()).toBe(0);
+  });
+
+  it("falls through to the classifier for ambiguous questions", async () => {
+    mockClassifierReply("CHAT");
+    await expect(llm.classifyRoute("can you summarize my notes?")).resolves.toBe("chat");
+    expect(mockFetchCalls()).toBe(1);
+
+    vi.unstubAllEnvs();
+    mockClassifierReply("TOOL");
+    await expect(llm.classifyRoute("something weird")).resolves.toBe("tool");
+    expect(mockFetchCalls()).toBe(1);
+  });
+
+  it("defaults to tool on ambiguity or classifier failure", async () => {
+    mockClassifierReply("MAYBE");
+    await expect(llm.classifyRoute("something weird")).resolves.toBe("tool");
+
+    vi.unstubAllEnvs();
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
+    await expect(llm.classifyRoute("something weird")).resolves.toBe("tool");
+  });
+});
+
 describe("parseJsonRepair", () => {
   it("parses plain JSON", () => {
     expect(parseJsonRepair('{"a":1}')).toEqual({ a: 1 });
@@ -134,5 +216,53 @@ describe("parseJsonRepair", () => {
 
   it("strips ```json code fences before parsing", () => {
     expect(parseJsonRepair('```json\n{"a":1}\n```')).toEqual({ a: 1 });
+  });
+});
+
+describe("generateContentStreamWithTools", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it("merges fragmented tool_call arguments across SSE deltas per index", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key");
+    const sse = [
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"search_material","arguments":"{\\"q\\":\\"thermo"}}]}}]}\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"dynamics\\"}"}}]}}]}\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":1,"id":"call_2","function":{"name":"translate_text","arguments":"{\\"text\\":\\"hi\\","}}]}}]}\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":1,"function":{"arguments":"\\"targetLanguage\\":\\"ms\\"}"}}]}}]}\n',
+      'data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n',
+      'data: [DONE]\n'
+    ];
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      body: new ReadableStream({
+        start(controller: any) {
+          const enc = new TextEncoder();
+          for (const line of sse) {
+            controller.enqueue(enc.encode(line));
+          }
+          controller.close();
+        }
+      }),
+      json: async () => ({})
+    }));
+
+    const events: any[] = [];
+    for await (const ev of llm.generateContentStreamWithTools([{ role: "user", parts: [{ text: "hi" }] }], {
+      tools: [],
+      task: "test"
+    })) {
+      events.push(ev);
+    }
+
+    const toolEvt = events.find((e) => e.type === "tool_calls");
+    expect(toolEvt.calls).toHaveLength(2);
+    expect(toolEvt.calls[0]).toEqual({ name: "search_material", args: { q: "thermodynamics" } });
+    expect(toolEvt.calls[1]).toEqual({ name: "translate_text", args: { text: "hi", targetLanguage: "ms" } });
+    expect(toolEvt.usage).toEqual({ model: "google/gemini-3.6-flash:nitro", inputTokens: 10, outputTokens: 5 });
+    expect(events[events.length - 1].type).toBe("end");
   });
 });

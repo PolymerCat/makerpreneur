@@ -284,7 +284,7 @@ export default function MaterialsPage() {
       <PageHero
         eyebrow="Study"
         title="Materials"
-        description="Upload PDFs — stored in Supabase Storage, indexed for AI search"
+        description="Upload PDFs, then search them and ask questions about them."
         icon="ti-file-text"
       />
 

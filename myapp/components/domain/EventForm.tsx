@@ -63,7 +63,7 @@ export function EventForm({ initial, defaultDate, onSave, onClose }: EventFormPr
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <Card className="modal" style={{ padding: 22 }}>
+      <Card className="modal" style={{ padding: 22 }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
           <h3 style={{ margin: 0, fontSize: 17, display: "flex", alignItems: "center", gap: 8 }}>
             <Icon name={base ? "ti-edit" : "ti-calendar-plus"} />

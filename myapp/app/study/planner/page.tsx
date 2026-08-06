@@ -122,7 +122,7 @@ export default function PlannerPage() {
           </button>
           <h3>
             {weekDays[0].toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-            {" — "}
+            {" to "}
             {weekDays[6].toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
           </h3>
           <button className="btn btn-sm" onClick={handleNextWeek}>

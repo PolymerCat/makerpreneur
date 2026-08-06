@@ -9,6 +9,7 @@ import { renderMarkdown } from "../_lib/render-markdown";
 import { useCourse } from "../_lib/CourseProvider";
 import { CoursePicker } from "../_components/CoursePicker";
 import { CourseBar } from "../_components/CourseBar";
+import { StudyBuddyIcon } from "../_components/StudyBuddyIcon";
 import { aiExtractMemory, aiGradeEssay } from "../actions";
 import type { Material } from "../_lib/types";
 
@@ -1949,8 +1950,15 @@ export default function ChatPage() {
                 var isUser = msg.role === "user";
                 return (
                   <div key={index} className={"chat-row chat-row-" + msg.role}>
-                    <div className="chat-avatar">
-                      <Icon name={isUser ? "ti-user" : "ti-robot"} />
+                    <div className="chat-avatar" style={{ background: "transparent" }}>
+                      {isUser ? (
+                        <Icon name="ti-user" />
+                      ) : (
+                        <StudyBuddyIcon
+                          state={index === messages.length - 1 && loading ? (isSearching ? "searching" : "thinking") : "idle"}
+                          size={34}
+                        />
+                      )}
                     </div>
                     <div className="chat-content">
                       <div className="chat-name">{isUser ? "You" : "Study Buddy"}</div>
@@ -1970,7 +1978,9 @@ export default function ChatPage() {
               })}
               {loading && (messages.length === 0 || messages[messages.length - 1].role === "user") ? (
                 <div className="chat-row chat-row-assistant">
-                  <div className="chat-avatar"><Icon name="ti-robot" /></div>
+                  <div className="chat-avatar" style={{ background: "transparent" }}>
+                    <StudyBuddyIcon state={isSearching ? "searching" : "thinking"} size={34} />
+                  </div>
                   <div className="chat-content">
                     <div className="chat-name">Study Buddy</div>
                     <ToolActivityStrip activity={toolActivity} isSearching={isSearching} />

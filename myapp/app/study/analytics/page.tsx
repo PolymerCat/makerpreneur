@@ -218,7 +218,7 @@ export default function AnalyticsPage() {
       <PageHero
         eyebrow="Makerpreneur 2026 • Longitudinal Learning"
         title="Student Academic Health & PYQ Analytics"
-        description="Real-time exam readiness, plain-language risk flags, 5-year PYQ topic mastery, and semester consistency tracking integrated with Supabase."
+        description="Real-time exam readiness, plain-language risk flags, five-year past question mastery, and semester consistency tracking in one view."
         icon="ti-chart-radar"
       />
 

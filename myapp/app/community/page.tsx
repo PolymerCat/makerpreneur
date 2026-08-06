@@ -12,7 +12,7 @@ export default function CommunityPage() {
       <PageHero
         eyebrow="Community"
         title="Campus conversations"
-        description="Reusable feed and people components for posts, groups, marketplace updates, and student discovery."
+        description="Posts, groups, marketplace updates, and students to connect with."
         icon="ti-users"
       />
 
@@ -28,7 +28,7 @@ export default function CommunityPage() {
       </section>
 
       <section>
-        <SectionHeader title="Community building blocks" description="These cards can be replaced with group, forum, or marketplace records later." icon="ti-layout-grid" />
+        <SectionHeader title="Where community happens" description="Forums, clubs, and buy-and-sell spaces all live here." icon="ti-layout-grid" />
         <div className="responsive-grid">
           <Card>
             <h3>Forum threads</h3>

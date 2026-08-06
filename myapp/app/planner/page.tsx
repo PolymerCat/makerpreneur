@@ -175,7 +175,7 @@ export default function PlannerPage() {
       <PageHero
         eyebrow="Planner"
         title="Study plan & schedule"
-        description="A monthly calendar for classes, study sessions, and tasks — with Google Calendar sync on the way."
+        description="A monthly calendar for classes, study sessions, and tasks. Google Calendar sync is on the way."
         icon="ti-calendar"
       />
 
