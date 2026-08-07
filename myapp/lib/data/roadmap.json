@@ -148,77 +148,88 @@
     {
       "type": "Feature",
       "properties": {
-        "title": "Padang Kawad"
+        "title": "Padang Kawad",
+        "next-stop": "Bus Stop Indah Kembara"
       },
       "geometry": { "type": "Point", "coordinates": [100.293333, 5.356562] }
     },
     {
       "type": "Feature",
       "properties": {
-        "title": "Bus stop Indah Kembara"
+        "title": "Bus stop Indah Kembara",
+        "next-stop": "Pharmacy"
       },
       "geometry": { "type": "Point", "coordinates": [100.295208, 5.355942] }
     },
     {
       "type": "Feature",
       "properties": {
-        "title": "Pharmacy"
+        "title": "Pharmacy",
+        "next-stop": "Stor Kimia"
       },
       "geometry": { "type": "Point", "coordinates": [100.297797, 5.355101] }
     },
     {
       "type": "Feature",
       "properties": {
-        "title": "Stor Kimia"
+        "title": "Stor Kimia",
+        "next-stop": "Pusat Sejahtera"
       },
       "geometry": { "type": "Point", "coordinates": [100.300452, 5.356145] }
     },
     {
       "type": "Feature",
       "properties": {
-        "title": "Pusat Sejahtera"
+        "title": "Pusat Sejahtera",
+        "next-stop": "Bus stop PPIK"
       },
       "geometry": { "type": "Point", "coordinates": [100.302399, 5.358819] }
     },
     {
       "type": "Feature",
       "properties": {
-        "title": "Bus stop PPIK"
+        "title": "Bus stop PPIK",
+        "next-stop": "SOLLAT"
       },
       "geometry": { "type": "Point", "coordinates": [100.304101, 5.358025] }
     },
     {
       "type": "Feature",
       "properties": {
-        "title": "SOLLAT"
+        "title": "SOLLAT",
+        "next-stop": "HBP"
       },
       "geometry": { "type": "Point", "coordinates": [100.306672, 5.357248] }
     },
     {
       "type": "Feature",
       "properties": {
-        "title": "HBP"
+        "title": "HBP",
+        "next-stop": "Bus stop SOM"
       },
       "geometry": { "type": "Point", "coordinates": [100.306538, 5.35506] }
     },
     {
       "type": "Feature",
       "properties": {
-        "title": "Bus stop SOM"
+        "title": "Bus stop SOM",
+        "next-stop": "Eureka"
       },
       "geometry": { "type": "Point", "coordinates": [100.303798, 5.35508] }
     },
     {
       "type": "Feature",
       "properties": {
-        "title": "Eureka"
+        "title": "Eureka",
+        "next-stop": "Harapan"
       },
       "geometry": { "type": "Point", "coordinates": [100.302674, 5.354778] }
     },
     {
       "type": "Feature",
       "properties": {
-        "title": "Harapan"
+        "title": "Harapan",
+        "next-stop": "Padang Kawad"
       },
       "geometry": { "type": "Point", "coordinates": [100.300333, 5.35489] }
     }

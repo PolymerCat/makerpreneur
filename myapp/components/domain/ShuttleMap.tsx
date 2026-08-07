@@ -15,8 +15,8 @@ var stops = routeData.features
   })
   .map(function (feature) {
     var coords = feature.geometry.coordinates as number[];
-    var props = feature.properties as { title?: string };
-    return { lat: coords[1], lon: coords[0], name: props.title || "" };
+    var props = feature.properties as { title?: string; "next-stop"?: string };
+    return { lat: coords[1], lon: coords[0], name: props.title || "", nextStop: props["next-stop"] || "" };
   });
 
 var USM_CENTER: [number, number] = [5.3571, 100.2936];
@@ -48,24 +48,23 @@ type BusInfo = {
   id: number;
   name: string;
   status: "In Transit" | "Boarding";
+  nextStop: string;
   position: { lat: number; lon: number };
 };
-
-function randomRoutePosition(): { lat: number; lon: number } {
-  var coordinates = routeData.features[0].geometry.coordinates as number[][];
-  var point = coordinates[Math.floor(Math.random() * coordinates.length)];
-  return { lat: point[1], lon: point[0] };
-}
 
 export function ShuttleMap() {
   var [selectedBus, setSelectedBus] = React.useState<BusInfo | null>(null);
   var [isExpanded, setIsExpanded] = React.useState(false);
+  var mapRef = React.useRef<L.Map | null>(null);
   var [operationalBuses, setOperationalBuses] = React.useState<BusInfo[]>(function () {
+    var padangKawad = stops.find(function (s) {
+      return s.name === "Padang Kawad";
+    });
     return [
-      { id: 101, name: "Bus A", status: "In Transit", position: randomRoutePosition() },
-      { id: 102, name: "Bus B", status: "In Transit", position: randomRoutePosition() },
-      { id: 103, name: "Bus C", status: "Boarding", position: randomRoutePosition() },
-      { id: 105, name: "Bus E", status: "In Transit", position: randomRoutePosition() }
+      { id: 101, name: "Bus A", status: "In Transit", nextStop: "Pharmacy", position: { lat: 5.355053, lon: 100.29657 } },
+      { id: 102, name: "Bus B", status: "In Transit", nextStop: "Pusat Sejahtera", position: { lat: 5.358462, lon: 100.301678 } },
+      { id: 103, name: "Bus C", status: "Boarding", nextStop: padangKawad ? padangKawad.nextStop : "", position: { lat: padangKawad ? padangKawad.lat : 5.356562, lon: padangKawad ? padangKawad.lon : 100.293333 } },
+      { id: 105, name: "Bus E", status: "In Transit", nextStop: "Harapan", position: { lat: 5.354329, lon: 100.301385 } }
     ];
   });
 
@@ -91,6 +90,7 @@ export function ShuttleMap() {
   return (
     <div className="shuttle-map h-[65vh] md:h-[75vh] w-full">
       <MapContainer
+        ref={mapRef}
         center={USM_CENTER}
         zoom={15}
         scrollWheelZoom={false}
@@ -177,12 +177,15 @@ export function ShuttleMap() {
                     type="button"
                     onClick={function () {
                       setSelectedBus(bus);
+                      if (mapRef.current) {
+                        mapRef.current.flyTo([bus.position.lat, bus.position.lon], 17, { animate: true });
+                      }
                     }}
                     className={
-                      "flex w-full items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-left transition-colors " +
+                      "flex w-full cursor-pointer items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-left transition-colors " +
                       (isSelected
                         ? "bg-[#f3e8ff]"
-                        : "hover:bg-[#faf5ff]")
+                        : "hover:bg-gray-100")
                     }
                   >
                     <span className="flex items-center gap-2">
@@ -194,13 +197,37 @@ export function ShuttleMap() {
                       ></span>
                       <span className="text-sm font-semibold text-[#1c1917]">{bus.name}</span>
                     </span>
-                    <span className="text-xs font-medium text-[#57534e]">{bus.status}</span>
+                    <span className="text-xs font-medium text-[#57534e]">
+                      {bus.status === "In Transit" ? "Heading to " + bus.nextStop : bus.status}
+                    </span>
                   </button>
                 </li>
               );
             })}
           </ul>
         </div>
+        <button
+          type="button"
+          onClick={function () {
+            if (mapRef.current) {
+              mapRef.current.flyTo(USM_CENTER, 15, { animate: true });
+            }
+          }}
+          className="mt-2 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-purple-50 px-3 py-2 text-xs font-semibold text-purple-700 shadow-sm transition-colors hover:bg-purple-100"
+        >
+          <svg
+            className="h-3.5 w-3.5"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+          >
+            <path
+              fillRule="evenodd"
+              d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H3.989a.75.75 0 00-.75.75v4.242a.75.75 0 001.5 0v-2.43l.31.31a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39zm1.23-3.723a.75.75 0 00.219-.53V2.929a.75.75 0 00-1.5 0V5.36l-.31-.31A7 7 0 003.239 8.188a.75.75 0 101.448.389A5.5 5.5 0 0113.89 6.11l.311.31h-2.432a.75.75 0 000 1.5h4.243a.75.75 0 00.53-.219z"
+              clipRule="evenodd"
+            />
+          </svg>
+          Refresh Map
+        </button>
       </div>
     </div>
   );
