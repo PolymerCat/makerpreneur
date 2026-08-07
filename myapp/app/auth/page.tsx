@@ -15,23 +15,31 @@ export default function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setInfo("");
     setBusy(true);
 
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
+        if (data.session) {
+          router.push("/");
+          router.refresh();
+        } else {
+          setInfo("Account created! Check your email to confirm your account before signing in.");
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        router.push("/");
+        router.refresh();
       }
-      router.push("/");
-      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
@@ -76,6 +84,9 @@ export default function AuthPage() {
           {error && (
             <p style={{ color: "var(--warning)", fontSize: 13, margin: 0 }}>{error}</p>
           )}
+          {info && (
+            <p style={{ color: "var(--success)", fontSize: 13, margin: 0 }}>{info}</p>
+          )}
 
           <button className="secondary-button" type="submit" disabled={busy} style={{ opacity: busy ? 0.6 : 1, border: 0, cursor: busy ? "not-allowed" : "pointer" }}>
             <Icon name={mode === "signin" ? "ti-login" : "ti-user-plus"} />
@@ -88,6 +99,7 @@ export default function AuthPage() {
             onClick={() => {
               setMode(mode === "signin" ? "signup" : "signin");
               setError("");
+              setInfo("");
             }}
             style={{ border: 0, cursor: "pointer", textAlign: "center", width: "100%" }}
           >

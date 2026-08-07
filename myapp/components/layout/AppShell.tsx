@@ -6,6 +6,7 @@ import { navItems } from "@/lib/sample-data";
 import { MainNav } from "./MainNav";
 import { Icon } from "@/components/ui/Icon";
 import { useSession } from "@/lib/auth-context";
+import { SosButton } from "@/components/domain/SosButton";
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -67,6 +68,8 @@ export function AppShell({ children }: AppShellProps) {
         </div>
 
         <MainNav items={navItems} onNavigate={closeNav} />
+
+        <SosButton />
 
         <p className="drawer-foot">StudentHub USM · campus workspace</p>
       </aside>

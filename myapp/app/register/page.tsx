@@ -7,6 +7,24 @@ import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
 import { useSession } from "@/lib/auth-context";
 
+function friendlyAuthError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : "";
+  const lower = msg.toLowerCase();
+  if (lower.includes("database error saving new user")) {
+    return "Could not create your account — our signup system hit a problem. Please try again in a moment.";
+  }
+  if (lower.includes("already registered") || lower.includes("already been registered")) {
+    return "An account with this email already exists. Try signing in instead.";
+  }
+  if (lower.includes("signups are disabled") || lower.includes("signup")) {
+    return "New signups are currently disabled on this campus. Please contact support.";
+  }
+  if (msg) {
+    return msg;
+  }
+  return "Registration failed. Please try again.";
+}
+
 export default function RegisterPage() {
   const router = useRouter();
   const { supabase } = useSession();
@@ -38,7 +56,10 @@ export default function RegisterPage() {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { name: fullName } },
+        options: {
+          data: { name: fullName },
+          emailRedirectTo: window.location.origin + "/auth/confirm",
+        },
       });
       if (error) throw error;
 
@@ -51,7 +72,7 @@ export default function RegisterPage() {
         setInfo("Account created! Check your email to confirm your account before signing in.");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Registration failed. Please try again.");
+      setError(friendlyAuthError(err));
     } finally {
       setBusy(false);
     }
