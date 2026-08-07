@@ -5841,7 +5841,14 @@ img.brand-mark {
   background: var(--background);
   color: var(--text);
   font-family: 'Inter', sans-serif;
-  
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 24px;
+}
+
 .marketplace-shell {
   padding-bottom: 76px;
 }
@@ -5868,8 +5875,16 @@ img.brand-mark {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 2px;
+  padding: 8px 4px;
+  text-decoration: none;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 10px;
+  max-width: 96px;
   overflow: hidden;
-  padding: 24px;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
 @keyframes floatBlob1 {
@@ -7369,18 +7384,6 @@ img.brand-mark {
   }
 }
 
-
-
-  gap: 2px;
-  padding: 8px 4px;
-  text-decoration: none;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 700;
-  border-radius: 10px;
-  max-width: 96px;
-  transition: background 0.15s ease, color 0.15s ease;
-}
 .mp-bottom-nav a:hover {
   color: var(--brand-deep);
   background: var(--surface-strong);
