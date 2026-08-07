@@ -11,7 +11,7 @@
 -- Fix: replace the function with a defensive version that (1) never lets a
 -- profile-creation failure block signup, and (2) writes whichever profile
 -- columns actually exist (marketplace OR study-hub schema, or just id).
--- Apply manually in the Supabase SQL editor (there is no migration runner).
+-- Apply manually in the Supabase SQL editor (there is no migration runner).///
 
 create or replace function public.handle_new_user()
 returns trigger
