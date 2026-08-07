@@ -3,7 +3,7 @@
 -- Run in the Supabase SQL editor after 0013/0014 migrations.
 -- created_by / user_id are resolved to the first real auth user, so the data
 -- shows up for that account. Swap the subquery for a hardcoded uuid if you want
--- a specific owner.
+-- a specific owner.....
 
 -- ---------------------------------------------------------------------------
 -- Events
