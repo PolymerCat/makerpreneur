@@ -21,15 +21,26 @@ var stops = routeData.features
 
 var USM_CENTER: [number, number] = [5.3571, 100.2936];
 
-function makeBusIcon(label: string): L.DivIcon {
+function makeBusIcon(label: string, status: "In Transit" | "Boarding"): L.DivIcon {
+  var palette =
+    status === "Boarding"
+      ? "bg-amber-400 text-amber-900"
+      : "bg-emerald-500 text-white";
   return L.divIcon({
     className: "shuttle-bus-marker",
     html:
-      '<div class="flex h-full w-full items-center justify-center rounded-full border border-[#1c1917] bg-[#6b21a8] px-2 text-[10px] font-semibold text-white">' +
+      '<div class="flex items-center gap-1.5 drop-shadow-md">' +
+      '<div class="flex items-center justify-center rounded-md border border-gray-300 bg-gray-100 p-1">' +
+      '<img src="/icons/bus-icon.png" alt="" class="h-5 w-5" />' +
+      "</div>" +
+      '<span class="rounded-full px-2.5 py-1 text-xs font-bold shadow-sm ' +
+      palette +
+      '">' +
       label +
+      "</span>" +
       "</div>",
-    iconSize: [54, 20],
-    iconAnchor: [27, 10],
+    iconSize: [110, 32],
+    iconAnchor: [55, 16],
   });
 }
 
@@ -126,7 +137,7 @@ export function ShuttleMap() {
             <Marker
               key={bus.id}
               position={[bus.position.lat, bus.position.lon]}
-              icon={makeBusIcon(bus.name)}
+              icon={makeBusIcon(bus.name, bus.status)}
             />
           );
         })}
