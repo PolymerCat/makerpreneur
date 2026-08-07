@@ -14,7 +14,7 @@ import { db } from "@/app/study/_lib/db";
 import { useSession } from "@/lib/auth-context";
 import { getProfile, type Profile } from "@/lib/profile-store";
 import type { CalendarEvent, CampusEvent, Metric, MyCSDEvent } from "@/lib/types";
-import { expandEvents } from "@/app/planner/page";
+import { expandEvents } from "@/lib/planner-utils";
 import { WelcomeOverlay } from "@/components/landing/WelcomeOverlay";
 
 export default function DashboardPage() {
