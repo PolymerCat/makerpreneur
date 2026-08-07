@@ -8,7 +8,8 @@ import { Card } from "@/components/ui/Card";
 import { TextInput } from "@/components/ui/TextInput";
 import { Textarea } from "@/components/ui/Textarea";
 import { useToast } from "@/components/marketplace/use-toast";
-import { uploadImage } from "@/app/marketplace/_lib/mappers";
+import { displayNameFromProfile, uploadImage, type ProfileRow } from "@/app/marketplace/_lib/mappers";
+import { updateMarketplaceProfile } from "@/app/marketplace/_lib/profile";
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
@@ -55,11 +56,12 @@ export default function EditMarketplaceProfilePage() {
       .single()
       .then(({ data }) => {
         if (!data) return;
-        setName(data.name);
-        setPaymentNote(data.payment_note ?? "");
-        if (data.avatar_url) setAvatarPreview(data.avatar_url);
-        if (data.qr_code_url) {
-          setQrPreview(data.qr_code_url);
+        const row = data as ProfileRow;
+        setName(displayNameFromProfile(row));
+        setPaymentNote(row.payment_note ?? "");
+        if (row.avatar_url) setAvatarPreview(row.avatar_url);
+        if (row.qr_code_url) {
+          setQrPreview(row.qr_code_url);
           setHadQrOnLoad(true);
         }
         setQrCleared(false);
@@ -92,40 +94,37 @@ export default function EditMarketplaceProfilePage() {
     setIsSubmitting(true);
 
     try {
-      const updateData: {
-        name: string;
-        payment_note: string | null;
-        qr_code_url?: string | null;
-        avatar_url?: string;
+      const updateFields: {
+        displayName: string;
+        paymentNote: string | null;
+        qrCodeUrl?: string | null;
+        avatarUrl?: string;
       } = {
-        name: trimmedName,
-        payment_note: sanitizePaymentNote(paymentNote) || null,
+        displayName: trimmedName,
+        paymentNote: sanitizePaymentNote(paymentNote) || null,
       };
 
       if (avatarFile) {
         const err = validateImageFile(avatarFile);
         if (err) throw new Error(err);
-        updateData.avatar_url = await uploadImage(supabase, avatarFile);
+        updateFields.avatarUrl = await uploadImage(supabase, avatarFile);
       }
 
       if (qrFile) {
         const err = validateImageFile(qrFile);
         if (err) throw new Error(err);
-        updateData.qr_code_url = await uploadImage(supabase, qrFile);
+        updateFields.qrCodeUrl = await uploadImage(supabase, qrFile);
       } else if (qrCleared && hadQrOnLoad) {
-        updateData.qr_code_url = null;
+        updateFields.qrCodeUrl = null;
       }
 
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update(updateData)
-        .eq("id", user.id);
-      if (profileError) throw profileError;
+      await updateMarketplaceProfile(supabase, user.id, updateFields);
 
       await supabase.auth.updateUser({
         data: {
           name: trimmedName,
-          ...(updateData.avatar_url ? { avatar_url: updateData.avatar_url } : {}),
+          full_name: trimmedName,
+          ...(updateFields.avatarUrl ? { avatar_url: updateFields.avatarUrl } : {}),
         },
       });
 
@@ -147,12 +146,13 @@ export default function EditMarketplaceProfilePage() {
         description: "Your profile has been successfully updated.",
       });
       router.push("/marketplace/profile");
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to update profile:", error);
+      var message = error instanceof Error ? error.message : "An unexpected error occurred.";
       toast({
         variant: "destructive",
         title: "Failed to update profile",
-        description: error?.message || "An unexpected error occurred.",
+        description: message,
       });
     } finally {
       setIsSubmitting(false);
@@ -196,10 +196,10 @@ export default function EditMarketplaceProfilePage() {
   };
 
   return (
-    <div style={{ maxWidth: 560, margin: "0 auto", width: "100%" }}>
+    <div className="mp-edit-wrap">
       <Card>
-        <h3 style={{ marginTop: 0 }}>Edit Your Profile</h3>
-        <p style={{ color: "var(--muted)" }}>
+        <h3 className="mp-section-title">Edit Your Profile</h3>
+        <p className="mp-muted-text">
           Update your account details below. Leave password fields blank to keep your current
           password.
         </p>
@@ -213,72 +213,62 @@ export default function EditMarketplaceProfilePage() {
           />
 
           <div className="form-group">
-            <label>Avatar photo</label>
+            <label htmlFor="avatar-file">Avatar photo</label>
             {avatarPreview && (
-              <div style={{ position: "relative", display: "inline-block" }}>
+              <div className="mp-preview-wrap">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={avatarPreview}
                   alt="Avatar preview"
-                  style={{ width: 90, height: 90, objectFit: "cover", borderRadius: "50%", border: "2px solid var(--line)" }}
+                  className="mp-avatar-preview"
                 />
                 <button
                   type="button"
                   onClick={removeAvatarImage}
                   aria-label="Remove avatar"
-                  style={{
-                    position: "absolute",
-                    top: 4,
-                    right: 4,
-                    background: "var(--danger)",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: "50%",
-                    width: 22,
-                    height: 22,
-                    cursor: "pointer",
-                  }}
+                  className="mp-remove-preview-btn"
                 >
                   <i className="ti ti-x" />
                 </button>
               </div>
             )}
-            <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleAvatarFileChange} />
+            <input
+              id="avatar-file"
+              name="avatar-file"
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={handleAvatarFileChange}
+            />
           </div>
 
           <div className="form-group">
-            <label>Payment QR code</label>
+            <label htmlFor="qr-file">Payment QR code</label>
             {qrPreview && (
-              <div style={{ position: "relative", display: "inline-block" }}>
+              <div className="mp-preview-wrap">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={qrPreview}
                   alt="Payment QR preview"
-                  style={{ width: 160, height: 160, objectFit: "cover", borderRadius: 10, border: "2px solid var(--line)" }}
+                  className="mp-qr-preview"
                 />
                 <button
                   type="button"
                   onClick={removeQrImage}
                   aria-label="Remove QR"
-                  style={{
-                    position: "absolute",
-                    top: 4,
-                    right: 4,
-                    background: "var(--danger)",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: "50%",
-                    width: 22,
-                    height: 22,
-                    cursor: "pointer",
-                  }}
+                  className="mp-remove-preview-btn"
                 >
                   <i className="ti ti-x" />
                 </button>
               </div>
             )}
-            <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleQrFileChange} />
-            <small style={{ color: "var(--muted)" }}>
+            <input
+              id="qr-file"
+              name="qr-file"
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={handleQrFileChange}
+            />
+            <small className="mp-muted-text">
               Buyers scan this to pay you. Bank/e-wallet QR works best.
             </small>
           </div>
@@ -316,7 +306,7 @@ export default function EditMarketplaceProfilePage() {
           <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
             {isSubmitting ? "Saving…" : "Save profile"}
           </button>
-          <Link href="/marketplace/profile" style={{ color: "var(--brand)", fontWeight: 700, fontSize: 14 }}>
+          <Link href="/marketplace/profile" className="mp-back-link">
             Back to profile
           </Link>
         </form>

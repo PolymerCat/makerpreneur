@@ -57,7 +57,57 @@ begin
   perform set_config('puddle.bypass_identity_guard', 'on', true);
 
   begin
-    if v_has_name and v_has_email then
+    if v_has_name and v_has_full_name and v_has_email then
+      -- Bridged schema (study-hub + marketplace columns)
+      if v_has_pref_lang then
+        insert into public.profiles (id, name, full_name, email, avatar_url, is_verified, role, preferred_language)
+        values (
+          new.id,
+          v_name,
+          v_name,
+          v_email,
+          v_avatar,
+          v_verified,
+          case when v_role = 'admin' then 'admin' else 'student' end,
+          'en'
+        )
+        on conflict (id) do update set
+          email = excluded.email,
+          name = case when excluded.name <> '' then excluded.name else profiles.name end,
+          full_name = case
+            when excluded.full_name <> '' then excluded.full_name
+            else profiles.full_name
+          end,
+          is_verified = excluded.is_verified,
+          role = case
+            when excluded.role = 'admin' then 'admin'
+            else profiles.role
+          end;
+      else
+        insert into public.profiles (id, name, full_name, email, avatar_url, is_verified, role)
+        values (
+          new.id,
+          v_name,
+          v_name,
+          v_email,
+          v_avatar,
+          v_verified,
+          case when v_role = 'admin' then 'admin' else 'user' end
+        )
+        on conflict (id) do update set
+          email = excluded.email,
+          name = case when excluded.name <> '' then excluded.name else profiles.name end,
+          full_name = case
+            when excluded.full_name <> '' then excluded.full_name
+            else profiles.full_name
+          end,
+          is_verified = excluded.is_verified,
+          role = case
+            when excluded.role = 'admin' then 'admin'
+            else profiles.role
+          end;
+      end if;
+    elsif v_has_name and v_has_email then
       -- Marketplace schema (0014_marketplace.sql)
       insert into public.profiles (id, name, email, avatar_url, is_verified, role)
       values (new.id, v_name, v_email, v_avatar, v_verified, v_role)

@@ -14,14 +14,34 @@ import { asProductCondition } from '@/lib/marketplace/product-condition';
 
 export type ProfileRow = {
   id: string;
-  name: string;
-  email: string;
-  avatar_url: string;
-  is_verified: boolean;
+  /** Marketplace display name (0014). May be empty on study-hub-only rows. */
+  name?: string | null;
+  /** Study-hub display name. Prefer when `name` is empty. */
+  full_name?: string | null;
+  email?: string | null;
+  avatar_url?: string | null;
+  is_verified?: boolean | null;
   role?: string | null;
   qr_code_url?: string | null;
   payment_note?: string | null;
 };
+
+/** Resolve a human display name from either marketplace or study-hub columns. */
+export function displayNameFromProfile(
+  row: Pick<ProfileRow, 'name' | 'full_name' | 'email'> | null | undefined
+): string {
+  if (!row) return 'Unknown';
+  var fromName = (row.name || '').trim();
+  if (fromName) return fromName;
+  var fromFull = (row.full_name || '').trim();
+  if (fromFull) return fromFull;
+  var email = (row.email || '').trim();
+  if (email) {
+    var local = email.split('@')[0];
+    if (local) return local;
+  }
+  return 'Unknown';
+}
 
 export type ProductRow = {
   id: string;
@@ -110,9 +130,9 @@ function asProfile(profiles?: ProfileRow | ProfileRow[] | null): ProfileRow | nu
 export function mapProfileToUser(row: ProfileRow): User {
   return {
     id: row.id,
-    name: row.name || "Student",
-    avatarUrl: row.avatar_url,
-    isVerified: row.is_verified,
+    name: displayNameFromProfile(row),
+    avatarUrl: row.avatar_url || '',
+    isVerified: Boolean(row.is_verified),
     role: row.role === "admin" ? "admin" : "user",
     qrCodeUrl: row.qr_code_url ?? undefined,
     paymentNote: row.payment_note ?? undefined,

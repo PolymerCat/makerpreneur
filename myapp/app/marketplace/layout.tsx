@@ -6,6 +6,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { MarketplaceProvider } from "./_lib/MarketplaceProvider";
 import { CartProvider } from "./_lib/cart-context";
 import { Icon } from "@/components/ui/Icon";
+import { MarketplaceNav } from "@/components/marketplace/MarketplaceNav";
 
 export default function MarketplaceLayout({
   children,
@@ -19,17 +20,20 @@ export default function MarketplaceLayout({
     <MarketplaceProvider>
       <CartProvider>
         <AppShell>
-          {children}
-          {!isCreatePage && (
-            <Link
-              href="/marketplace/products/new"
-              className="fab-button"
-              title="Sell an item"
-              aria-label="Sell an item"
-            >
-              <Icon name="ti-plus" />
-            </Link>
-          )}
+          <div className="marketplace-shell">
+            {children}
+            <MarketplaceNav />
+            {!isCreatePage && (
+              <Link
+                href="/marketplace/products/new"
+                className="fab-button"
+                title="Sell an item"
+                aria-label="Sell an item"
+              >
+                <Icon name="ti-plus" />
+              </Link>
+            )}
+          </div>
         </AppShell>
       </CartProvider>
     </MarketplaceProvider>

@@ -7,6 +7,7 @@ import { useSession } from "@/lib/auth-context";
 import { Dialog } from "@/components/ui/Dialog";
 import { useToast } from "./use-toast";
 import { notifyDealRecorded } from "@/app/marketplace/_lib/notifications";
+import { displayNameFromProfile, type ProfileRow } from "@/app/marketplace/_lib/mappers";
 
 type DealMethod = "qr" | "cash_meetup";
 
@@ -32,6 +33,27 @@ export function PaymentDialog({ item, children }: { item: CartItem; children: Re
 
     setIsSubmitting(true);
     try {
+      let sellerName = item.product.seller.name;
+      if (!sellerName || sellerName === "Student" || sellerName === "Unknown") {
+        const { data: sellerProfile } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", item.product.seller.id)
+          .maybeSingle();
+        if (sellerProfile) {
+          sellerName = displayNameFromProfile(sellerProfile as ProfileRow);
+        }
+      }
+
+      const buyerName =
+        displayNameFromProfile({
+          name: (user.user_metadata?.name as string) || null,
+          full_name: (user.user_metadata?.full_name as string) || null,
+          email: user.email || null,
+        }) ||
+        user.email ||
+        "Anonymous Buyer";
+
       const { data: purchase, error: purchaseError } = await supabase
         .from("purchases")
         .insert({
@@ -40,9 +62,8 @@ export function PaymentDialog({ item, children }: { item: CartItem; children: Re
           product_name: item.product.name,
           product_image: item.product.imageUrls[0] ?? "",
           price: item.product.price,
-          seller_name: item.product.seller.name,
-          buyer_name:
-            (user.user_metadata?.name as string) || user.email || "Anonymous Buyer",
+          seller_name: sellerName,
+          buyer_name: buyerName,
           status: "Pending",
         })
         .select("id")
@@ -123,7 +144,7 @@ export function PaymentDialog({ item, children }: { item: CartItem; children: Re
           )
         }
       >
-        <p style={{ fontSize: 13, color: "var(--muted)" }}>
+        <p className="mp-payment-muted">
           {step === "select_method"
             ? `Choose how you will pay the seller for ${item.product.name}. Marketplace does not process or verify payments.`
             : paymentMethod === "qr"
@@ -131,14 +152,14 @@ export function PaymentDialog({ item, children }: { item: CartItem; children: Re
               : "Arrange a public campus meetup and pay in cash."}
         </p>
 
-        <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px" }}>
+        <div className="card mp-payment-summary">
           <div>
             <strong>{item.product.name}</strong>
-            <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>
+            <p className="mp-payment-seller">
               Seller: {item.product.seller.name}
             </p>
           </div>
-          <strong style={{ fontSize: 18, color: "var(--brand-deep)" }}>
+          <strong className="mp-payment-price">
             RM {item.product.price.toFixed(2)}
           </strong>
         </div>
@@ -146,16 +167,7 @@ export function PaymentDialog({ item, children }: { item: CartItem; children: Re
         {step === "select_method" ? (
           <div className="stack">
             <label
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: 12,
-                border: `2px solid ${paymentMethod === "qr" ? "var(--brand)" : "var(--line)"}`,
-                borderRadius: 10,
-                cursor: "pointer",
-                background: paymentMethod === "qr" ? "var(--brand-soft)" : "var(--surface)",
-              }}
+              className={`mp-payment-method${paymentMethod === "qr" ? " is-selected" : ""}`}
             >
               <input
                 type="radio"
@@ -167,16 +179,7 @@ export function PaymentDialog({ item, children }: { item: CartItem; children: Re
               <span>Seller QR / e-wallet</span>
             </label>
             <label
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: 12,
-                border: `2px solid ${paymentMethod === "cash_meetup" ? "var(--brand)" : "var(--line)"}`,
-                borderRadius: 10,
-                cursor: "pointer",
-                background: paymentMethod === "cash_meetup" ? "var(--brand-soft)" : "var(--surface)",
-              }}
+              className={`mp-payment-method${paymentMethod === "cash_meetup" ? " is-selected" : ""}`}
             >
               <input
                 type="radio"
@@ -189,11 +192,11 @@ export function PaymentDialog({ item, children }: { item: CartItem; children: Re
             </label>
           </div>
         ) : (
-          <div className="card" style={{ textAlign: "center", padding: 16 }}>
+          <div className="card mp-payment-confirm">
             {paymentMethod === "qr" ? (
               sellerQrUrl ? (
                 <>
-                  <p style={{ fontSize: 14 }}>
+                  <p className="mp-payment-muted">
                     Scan the seller&apos;s QR to pay{" "}
                     <strong>RM {item.product.price.toFixed(2)}</strong>, then notify them.
                   </p>
@@ -201,12 +204,12 @@ export function PaymentDialog({ item, children }: { item: CartItem; children: Re
                   <img
                     src={sellerQrUrl}
                     alt="Seller payment QR code"
-                    style={{ width: 200, height: 200, margin: "10px auto", borderRadius: 8, border: "2px solid var(--line)" }}
+                    className="mp-payment-qr-img"
                   />
                 </>
               ) : (
                 <div className="stack">
-                  <p style={{ fontSize: 13, color: "var(--muted)" }}>
+                  <p className="mp-payment-muted">
                     This seller has not uploaded a payment QR yet. Message them in chat for
                     bank/QR details, or notify them after you arrange payment.
                   </p>
@@ -219,7 +222,7 @@ export function PaymentDialog({ item, children }: { item: CartItem; children: Re
                 </div>
               )
             ) : (
-              <p style={{ fontSize: 14 }}>
+              <p className="mp-payment-muted">
                 Meet in a public campus spot, exchange cash and the item, then notify the seller
                 so they can confirm the deal.
               </p>

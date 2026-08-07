@@ -1,16 +1,14 @@
 "use client";
 
+import "./events.css";
 import React, { useMemo } from "react";
 import { db } from "@/app/study/_lib/db";
 import { useSession } from "@/lib/auth-context";
 import type { EventRegistration, EventRegistrationStatus, MyCSDEvent } from "@/lib/types";
 import { AppShell } from "@/components/layout/AppShell";
-import { PageHero } from "@/components/layout/PageHero";
-import { MetricCard } from "@/components/ui/MetricCard";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
-import { SectionHeader } from "@/components/ui/SectionHeader";
 import {
   EVENT_CATEGORIES,
   EventCreateForm,
@@ -18,8 +16,6 @@ import {
 } from "@/components/domain/EventCreateForm";
 import { RegistrationForm } from "@/components/domain/RegistrationForm";
 import { EventRosterModal, participantsCsv } from "@/components/domain/EventRosterModal";
-
-type TabKey = "browse" | "mine" | "myevents";
 
 function formatWhen(iso: string, endsIso?: string | null): string {
   var startStr = new Date(iso).toLocaleString([], {
@@ -352,44 +348,44 @@ export default function EventsPage() {
     var isOwner = ev.createdBy === userId;
     var myReg = myRegistration(ev.id);
     return (
-      <Card key={ev.id} className="event-card" style={{ cursor: "pointer", padding: 0, overflow: "hidden" }} onClick={function() { setDetailEvent(ev); }}>
+      <Card key={ev.id} className="event-card ev-event-card-clickable" onClick={function() { setDetailEvent(ev); }}>
         {ev.imageUrl ? (
-          <div style={{ width: "100%", aspectRatio: "210 / 297", maxHeight: 340, overflow: "hidden", background: "var(--line)", borderBottom: "1px solid var(--line)" }}>
-            <img src={ev.imageUrl} alt={ev.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          <div className="ev-card-image-wrap">
+            <img src={ev.imageUrl} alt={ev.name} className="ev-cover-img" />
           </div>
         ) : (
-          <div style={{ width: "100%", height: 75, background: "var(--brand)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", borderBottom: "1px solid var(--line)" }}>
-            <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>{ev.category}</span>
+          <div className="ev-card-placeholder">
+            <span className="ev-card-placeholder-label">{ev.category}</span>
           </div>
         )}
 
-        <div style={{ padding: 16 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+        <div className="ev-card-body">
+          <div className="ev-card-badges-row">
             <Badge tone="neutral">{ev.category}</Badge>
             <Badge>{ev.points} MyCSD points</Badge>
           </div>
-          <h3 style={{ margin: "10px 0 2px", fontSize: 16, fontWeight: 700 }}>{ev.name}</h3>
-          <p style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>by {ev.organizer}</p>
-          <p style={{ margin: "8px 0 0", fontSize: 13 }}>
+          <h3 className="ev-card-title">{ev.name}</h3>
+          <p className="ev-card-organizer">by {ev.organizer}</p>
+          <p className="ev-card-meta">
             <Icon name="ti-calendar" /> {formatWhen(ev.startsAt, ev.endsAt)}
           </p>
-          <p style={{ margin: "4px 0 0", fontSize: 13 }}>
+          <p className="ev-card-meta-tight">
             <Icon name="ti-map-pin" /> {ev.location}
           </p>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 8, alignItems: "center", fontSize: 13 }}>
+          <div className="ev-card-stats">
             {ev.fee && (
-              <span style={{ color: "var(--muted)" }}>
+              <span className="ev-text-muted">
                 <Icon name="ti-wallet" /> {ev.fee}
               </span>
             )}
-            <span style={{ color: "var(--muted)" }}>
+            <span className="ev-text-muted">
               <Icon name="ti-users" /> {ev.registeredCount} registered
             </span>
-            <span style={{ color: deadlineOpen ? "var(--muted)" : "var(--warning)" }}>
+            <span className={deadlineOpen ? "ev-deadline-open" : "ev-deadline-closed"}>
               <Icon name="ti-clock" /> {deadlineOpen ? "Closes " : "Closed "}{formatWhen(ev.registrationDeadline)}
             </span>
           </div>
-          <div style={{ marginTop: 10 }}>
+          <div className="ev-card-status">
             {myReg ? (
               <Badge tone={statusTone(myReg.status)}>{statusLabel(myReg.status)}</Badge>
             ) : isOwner ? (
@@ -415,31 +411,31 @@ export default function EventsPage() {
 
     return (
       <div className="modal-backdrop" onClick={function() { setDetailEvent(null); }}>
-        <Card className="modal" style={{ padding: 0, width: "min(880px, 94vw)", maxHeight: "90vh", overflowY: "auto" }} onClick={function(e) { e.stopPropagation(); }}>
+        <Card className="modal ev-detail-modal" onClick={function(e) { e.stopPropagation(); }}>
           {ev.imageUrl ? (
-            <div style={{ width: "100%", background: "var(--surface)", padding: "24px 0", borderBottom: "1px solid var(--line)", display: "flex", justifyContent: "center", alignItems: "center" }}>
-              <div style={{ width: "min(320px, 80vw)", aspectRatio: "210 / 297", borderRadius: "var(--radius)", overflow: "hidden", border: "1px solid var(--line)", boxShadow: "0 8px 28px rgba(0,0,0,0.15)", background: "#fff" }}>
-                <img src={ev.imageUrl} alt={ev.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            <div className="ev-detail-image-banner">
+              <div className="ev-detail-poster-frame">
+                <img src={ev.imageUrl} alt={ev.name} className="ev-cover-img" />
               </div>
             </div>
           ) : (
-            <div style={{ width: "100%", height: 120, background: "var(--brand)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", borderBottom: "1px solid var(--line)" }}>
-              <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>{ev.category}</span>
+            <div className="ev-card-placeholder-lg">
+              <span className="ev-card-placeholder-label-lg">{ev.category}</span>
             </div>
           )}
 
-          <div style={{ padding: 28 }}>
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12, gap: 12 }}>
+          <div className="ev-detail-body">
+            <div className="ev-detail-header-row">
               <div>
-                <h3 style={{ margin: 0, fontSize: 24, fontWeight: 700, fontFamily: "'Outfit', sans-serif", lineHeight: 1.2 }}>{ev.name}</h3>
-                <p style={{ margin: "6px 0 0", color: "var(--muted)", fontSize: 14 }}>Organized by <strong>{ev.organizer}</strong></p>
+                <h3 className="ev-detail-title">{ev.name}</h3>
+                <p className="ev-detail-organizer">Organized by <strong>{ev.organizer}</strong></p>
               </div>
-              <button className="small-action" type="button" onClick={function() { setDetailEvent(null); }} aria-label="Close" style={{ cursor: "pointer", fontSize: 18, padding: 6 }}>
+              <button className="small-action ev-detail-close" type="button" onClick={function() { setDetailEvent(null); }} aria-label="Close">
                 <Icon name="ti-x" />
               </button>
             </div>
 
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 20 }}>
+            <div className="ev-detail-badges">
               <Badge tone="neutral">{ev.category}</Badge>
               <Badge>{ev.points} MyCSD points</Badge>
               {ev.fee && <Badge tone="neutral">{ev.fee}</Badge>}
@@ -447,43 +443,43 @@ export default function EventsPage() {
             </div>
 
             {ev.description && (
-              <div style={{ marginBottom: 24, background: "var(--surface)", padding: 18, borderRadius: "var(--radius)", border: "1px solid var(--line)" }}>
-                <h4 style={{ margin: "0 0 8px", fontSize: 14, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--muted)" }}>About this Event</h4>
-                <p style={{ margin: 0, fontSize: 15, whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{ev.description}</p>
+              <div className="ev-detail-about">
+                <h4 className="ev-detail-about-title">About this Event</h4>
+                <p className="ev-detail-about-text">{ev.description}</p>
               </div>
             )}
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16, background: "var(--surface)", padding: 20, borderRadius: "var(--radius)", border: "1px solid var(--line)", marginBottom: 20, fontSize: 15, lineHeight: 1.8 }}>
+            <div className="ev-detail-info-grid">
               <div>
-                <p style={{ margin: 0, color: "var(--muted)", fontSize: 13, fontWeight: 600 }}>DATE & TIME</p>
-                <p style={{ margin: "2px 0 10px", fontWeight: 700 }}><Icon name="ti-calendar" /> {formatWhen(ev.startsAt, ev.endsAt)}</p>
-                <p style={{ margin: 0, color: "var(--muted)", fontSize: 13, fontWeight: 600 }}>LOCATION</p>
-                <p style={{ margin: "2px 0 0", fontWeight: 700 }}><Icon name="ti-map-pin" /> {ev.location}</p>
+                <p className="ev-detail-label">DATE & TIME</p>
+                <p className="ev-detail-value"><Icon name="ti-calendar" /> {formatWhen(ev.startsAt, ev.endsAt)}</p>
+                <p className="ev-detail-label">LOCATION</p>
+                <p className="ev-detail-value-last"><Icon name="ti-map-pin" /> {ev.location}</p>
               </div>
               <div>
-                <p style={{ margin: 0, color: "var(--muted)", fontSize: 13, fontWeight: 600 }}>REGISTRATION DEADLINE</p>
-                <p style={{ margin: "2px 0 10px", fontWeight: 700 }}>
+                <p className="ev-detail-label">REGISTRATION DEADLINE</p>
+                <p className="ev-detail-value">
                   <Icon name="ti-clock" /> {formatWhen(ev.registrationDeadline)} ({deadlineOpen ? "Open" : "Closed"})
                 </p>
-                <p style={{ margin: 0, color: "var(--muted)", fontSize: 13, fontWeight: 600 }}>ATTENDEES</p>
-                <p style={{ margin: "2px 0 0", fontWeight: 700 }}><Icon name="ti-users" /> {ev.registeredCount} registered</p>
+                <p className="ev-detail-label">ATTENDEES</p>
+                <p className="ev-detail-value-last"><Icon name="ti-users" /> {ev.registeredCount} registered</p>
               </div>
             </div>
 
             {eventEnded && ev.status === "open" && (
-              <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 8 }}>This event has already taken place.</p>
+              <p className="ev-detail-ended-note">This event has already taken place.</p>
             )}
 
             {myReg && (
-              <div style={{ marginBottom: 20, border: "1px solid var(--line)", borderRadius: "var(--radius)", padding: 18, background: "var(--surface)" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                  <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Your Registration Details</h4>
+              <div className="ev-detail-reg-box">
+                <div className="ev-detail-reg-header">
+                  <h4 className="ev-detail-reg-title">Your Registration Details</h4>
                   <Badge tone={statusTone(myReg!.status)}>{statusLabel(myReg!.status)}</Badge>
                 </div>
                 {ev.formFields.map(function(f) {
                   return (
-                    <p key={f.id} style={{ margin: "4px 0", fontSize: 14 }}>
-                      <span style={{ color: "var(--muted)", fontWeight: 600 }}>{f.label}: </span>
+                    <p key={f.id} className="ev-detail-reg-field">
+                      <span className="ev-detail-reg-label">{f.label}: </span>
                       {String(myReg!.answers[f.id] ?? "") || "—"}
                     </p>
                   );
@@ -491,18 +487,17 @@ export default function EventsPage() {
               </div>
             )}
 
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 24, paddingTop: 16, borderTop: "1px solid var(--line)" }}>
+            <div className="ev-detail-actions">
               {canRegister && (
-                <button className="btn btn-primary" type="button" onClick={function() { setRegisterEvent(ev); setDetailEvent(null); }} style={{ cursor: "pointer", height: 44, padding: "0 24px", fontSize: 15 }}>
+                <button className="btn btn-primary ev-btn-modal-primary" type="button" onClick={function() { setRegisterEvent(ev); setDetailEvent(null); }}>
                   <Icon name="ti-user-plus" /> Register Now
                 </button>
               )}
               {canCancelReg && (
                 <button
-                  className="btn btn-ghost"
+                  className="btn btn-ghost ev-btn-modal-ghost"
                   type="button"
                   onClick={function() { handleCancelRegistration(myReg!); }}
-                  style={{ cursor: "pointer", height: 44, padding: "0 20px", fontSize: 14 }}
                 >
                   <Icon name="ti-x" /> Cancel Registration
                 </button>
@@ -510,14 +505,14 @@ export default function EventsPage() {
               {isOwner && ev.status === "open" && (
                 <>
                   {ev.registeredCount === 0 && (
-                    <button className="btn btn-ghost" type="button" onClick={function() { setEditEvent(ev); setDetailEvent(null); }} style={{ cursor: "pointer", height: 44, padding: "0 20px", fontSize: 14 }}>
+                    <button className="btn btn-ghost ev-btn-modal-ghost" type="button" onClick={function() { setEditEvent(ev); setDetailEvent(null); }}>
                       <Icon name="ti-pencil" /> Edit Event
                     </button>
                   )}
-                  <button className="btn btn-ghost" type="button" onClick={function() { setDetailEvent(null); openRoster(ev); }} style={{ cursor: "pointer", height: 44, padding: "0 20px", fontSize: 14 }}>
+                  <button className="btn btn-ghost ev-btn-modal-ghost" type="button" onClick={function() { setDetailEvent(null); openRoster(ev); }}>
                     <Icon name="ti-users" /> View Roster
                   </button>
-                  <button className="btn btn-ghost" type="button" onClick={function() { handleCancelEvent(ev); }} style={{ cursor: "pointer", height: 44, padding: "0 20px", fontSize: 14 }}>
+                  <button className="btn btn-ghost ev-btn-modal-ghost" type="button" onClick={function() { handleCancelEvent(ev); }}>
                     <Icon name="ti-ban" /> Cancel Event
                   </button>
                 </>
@@ -532,16 +527,16 @@ export default function EventsPage() {
   return (
     <AppShell>
       {/* Compact Minimal Header replacing giant PageHero & Metric Cards */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+      <div className="ev-page-header">
         <div>
-          <h1 style={{ margin: 0, fontSize: 26, fontFamily: "'Outfit', sans-serif", fontWeight: 700, display: "flex", alignItems: "center", gap: 10 }}>
+          <h1 className="ev-page-title">
             <Icon name="ti-ticket" /> Events & Opportunities
           </h1>
-          <p style={{ margin: "6px 0 0", color: "var(--muted)", fontSize: 14, lineHeight: 1.5 }}>
+          <p className="ev-page-subtitle">
             Discover events, register in one step, and track your MyCSD points.
           </p>
         </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <div className="ev-page-badges">
           <Badge tone="brand">
             <Icon name="ti-trophy" /> {pointsTotal} MyCSD Points
           </Badge>
@@ -552,31 +547,15 @@ export default function EventsPage() {
       </div>
 
       {notice && (
-        <div style={{
-          position: "fixed",
-          top: 24,
-          right: 24,
-          zIndex: 9999,
-          background: "#ecfdf5",
-          color: "#065f46",
-          border: "1px solid #a7f3d0",
-          borderRadius: 12,
-          padding: "14px 20px",
-          boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.15)",
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          fontSize: 15,
-          fontWeight: 600,
-        }}>
-          <span style={{ display: "inline-flex", background: "#10b981", color: "#fff", borderRadius: "50%", padding: 4, fontSize: 16 }}>
+        <div className="ev-notice">
+          <span className="ev-notice-icon">
             <Icon name="ti-check" />
           </span>
           <span>{notice}</span>
           <button
             type="button"
             onClick={function() { setNotice(""); }}
-            style={{ background: "none", border: "none", color: "#065f46", cursor: "pointer", marginLeft: 8, padding: 2, display: "flex", alignItems: "center" }}
+            className="ev-notice-dismiss"
             aria-label="Dismiss"
           >
             <Icon name="ti-x" />
@@ -596,7 +575,7 @@ export default function EventsPage() {
           />
         </div>
 
-        <div style={{ position: "relative" }}>
+        <div className="ev-popover-anchor">
           <button
             type="button"
             className={"icon-btn-toggle" + (showFilter || categoryFilter.length < EVENT_CATEGORIES.length || organizerFilter ? " active" : "")}
@@ -609,20 +588,19 @@ export default function EventsPage() {
 
           {showFilter && (
             <div className="popover-panel">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Filter Events</h4>
+              <div className="ev-filter-header">
+                <h4 className="ev-popover-title">Filter Events</h4>
                 <button
                   type="button"
-                  className="btn btn-xs btn-ghost"
+                  className="btn btn-xs btn-ghost ev-popover-reset"
                   onClick={function() { setCategoryFilter(EVENT_CATEGORIES); setOrganizerFilter(""); }}
-                  style={{ fontSize: 13 }}
                 >
                   Reset
                 </button>
               </div>
 
-              <h5 style={{ margin: "10px 0 6px", fontSize: 13, color: "var(--muted)", fontWeight: 600 }}>Categories</h5>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+              <h5 className="ev-filter-label">Categories</h5>
+              <div className="ev-category-chips">
                 {EVENT_CATEGORIES.map(function(cat) {
                   var active = categoryFilter.indexOf(cat) !== -1;
                   return (
@@ -630,8 +608,7 @@ export default function EventsPage() {
                       key={cat}
                       type="button"
                       onClick={function() { toggleCategory(cat); }}
-                      className={active ? "btn btn-sm btn-primary" : "btn btn-sm btn-ghost"}
-                      style={{ cursor: "pointer", padding: "4px 10px", fontSize: 13 }}
+                      className={(active ? "btn btn-sm btn-primary" : "btn btn-sm btn-ghost") + " ev-category-chip"}
                     >
                       {cat}
                     </button>
@@ -639,18 +616,18 @@ export default function EventsPage() {
                 })}
               </div>
 
-              <h5 style={{ margin: "14px 0 6px", fontSize: 13, color: "var(--muted)", fontWeight: 600 }}>Organizer</h5>
+              <h5 className="ev-filter-label-organizer">Organizer</h5>
               <input
+                className="ev-input ev-input-full"
                 value={organizerFilter}
                 onChange={function(e) { setOrganizerFilter(e.target.value); }}
                 placeholder="Filter by organizer..."
-                style={{ ...inputStyle, width: "100%", height: 38, fontSize: 14 }}
               />
             </div>
           )}
         </div>
 
-        <div style={{ position: "relative" }}>
+        <div className="ev-popover-anchor">
           <button
             type="button"
             className={"icon-btn-toggle" + (showSort ? " active" : "")}
@@ -662,9 +639,9 @@ export default function EventsPage() {
           </button>
 
           {showSort && (
-            <div className="popover-panel" style={{ width: 230 }}>
-              <h4 style={{ margin: "0 0 10px", fontSize: 15, fontWeight: 700 }}>Sort Events</h4>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div className="popover-panel ev-sort-panel">
+              <h4 className="ev-popover-title-spaced">Sort Events</h4>
+              <div className="ev-sort-options">
                 {[
                   { value: "earliest", label: "Earliest first" },
                   { value: "points", label: "Most MyCSD points" },
@@ -675,9 +652,8 @@ export default function EventsPage() {
                     <button
                       key={opt.value}
                       type="button"
-                      className={"btn btn-sm " + (sortBy === opt.value ? "btn-primary" : "btn-ghost")}
+                      className={"btn btn-sm " + (sortBy === opt.value ? "btn-primary" : "btn-ghost") + " ev-sort-option"}
                       onClick={function() { setSortBy(opt.value); setShowSort(false); }}
-                      style={{ justifyContent: "flex-start", width: "100%", fontSize: 13 }}
                     >
                       {opt.label}
                     </button>
@@ -688,7 +664,7 @@ export default function EventsPage() {
           )}
         </div>
 
-        <div style={{ position: "relative" }}>
+        <div className="ev-popover-anchor">
           <button
             type="button"
             className={"icon-btn-toggle" + (regsCollapsed && myEventsCollapsed ? " active" : "")}
@@ -706,28 +682,28 @@ export default function EventsPage() {
       </div>
 
       {loading ? (
-        <p style={{ color: "var(--muted)", fontSize: 15 }}>Loading events…</p>
+        <p className="ev-loading">Loading events…</p>
       ) : (
         /* Simultaneous 3-Section Dashboard Layout */
         <div className={"events-dashboard-grid" + (regsCollapsed && myEventsCollapsed ? " sidebar-collapsed" : "")}>
           {/* Main Area: Browse Events */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div className="ev-main-column">
             <Card>
-              <div style={{ marginBottom: 18 }}>
-                <h3 style={{ margin: 0, fontSize: 18, fontFamily: "'Outfit', sans-serif", fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
-                  <Icon name="ti-compass" /> Browse Events <span className="badge" style={{ fontSize: 12, padding: "2px 8px" }}>{browseEvents.length}</span>
+              <div className="ev-section-header-wrap">
+                <h3 className="ev-section-title">
+                  <Icon name="ti-compass" /> Browse Events <span className="badge ev-badge-sm">{browseEvents.length}</span>
                 </h3>
               </div>
 
               {browseEvents.length === 0 ? (
                 <div>
-                  <h4 style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 700 }}>No events match</h4>
-                  <p style={{ color: "var(--muted)", fontSize: 14, margin: 0, lineHeight: 1.5 }}>
+                  <h4 className="ev-empty-title">No events match</h4>
+                  <p className="ev-empty-text">
                     Try clearing filters, or post the first event yourself using the floating button at the bottom-right.
                   </p>
                 </div>
               ) : (
-                <div className="responsive-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
+                <div className="responsive-grid ev-browse-grid">
                   {browseEvents.map(renderEventCard)}
                 </div>
               )}
@@ -735,29 +711,30 @@ export default function EventsPage() {
           </div>
 
           {/* Right Sidebar: My Registrations & My Events */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+          <div className="ev-sidebar-column">
             {/* Section 2: My Registrations */}
-            <Card style={{ transition: "all 0.2s ease" }}>
+            <Card className="ev-sidebar-card">
               <div
-                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", userSelect: "none" }}
+                className="ev-collapsible-header"
                 onClick={function() { setRegsCollapsed(!regsCollapsed); }}
               >
-                <h3 style={{ margin: 0, fontSize: 16, fontFamily: "'Outfit', sans-serif", fontWeight: 700, display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
-                  <Icon name="ti-calendar-event" /> My Registrations <span className="badge" style={{ fontSize: 12, padding: "2px 8px" }}>{myRegs.length}</span>
+                <h3 className="ev-sidebar-title">
+                  <Icon name="ti-calendar-event" /> My Registrations <span className="badge ev-badge-sm">{myRegs.length}</span>
                 </h3>
-                <div style={{ fontSize: 16, color: "var(--muted)", display: "flex", alignItems: "center" }}>
+                <div className="ev-chevron-wrap">
                   <Icon name={regsCollapsed ? "ti-chevron-down" : "ti-chevron-up"} />
                 </div>
               </div>
 
               {!regsCollapsed && (
-                <div style={{ marginTop: 14 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                    <h4 style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--muted)", margin: 0, fontWeight: 700 }}>Upcoming</h4>
+                <div className="ev-sidebar-body">
+                  <div className="ev-reg-filter-row">
+                    <h4 className="ev-section-label">Upcoming</h4>
                     <select
+                      className="ev-select-sm"
                       value={regFilter}
                       onChange={function(e) { setRegFilter(e.target.value); }}
-                      style={{ height: 28, padding: "0 8px", fontSize: 12, border: "1px solid var(--line)", borderRadius: "var(--radius)", background: "var(--surface)" }}
+                      aria-label="Filter registrations by status"
                     >
                       <option value="all">All statuses</option>
                       <option value="registered">Registered</option>
@@ -767,32 +744,31 @@ export default function EventsPage() {
                   </div>
 
                   {upcomingRegs.length === 0 ? (
-                    <p style={{ color: "var(--muted)", fontSize: 14, margin: "0 0 14px" }}>No upcoming registrations.</p>
+                    <p className="ev-muted-sm-mb">No upcoming registrations.</p>
                   ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 18 }}>
+                    <div className="ev-list-column-spaced">
                       {upcomingRegs.map(function(item) {
                         var ev = item.event;
                         var canCancel = item.reg.status === "registered" &&
                           new Date(ev.registrationDeadline).getTime() > now.getTime() &&
                           ev.status === "open";
                         return (
-                          <div key={item.reg.id} style={{ padding: 14, border: "1px solid var(--line)", borderRadius: "var(--radius)", background: "var(--surface)" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
-                              <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>{ev.name}</h4>
+                          <div key={item.reg.id} className="ev-list-item">
+                            <div className="ev-list-item-header">
+                              <h4 className="ev-list-item-title">{ev.name}</h4>
                               <Badge tone={statusTone(item.reg.status)}>{statusLabel(item.reg.status)}</Badge>
                             </div>
-                            <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: 13 }}>by {ev.organizer}</p>
-                            <p style={{ margin: "6px 0 0", fontSize: 13 }}><Icon name="ti-calendar" /> {formatWhen(ev.startsAt)}</p>
-                            <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
-                              <button className="btn btn-xs btn-ghost" type="button" onClick={function() { setDetailEvent(ev); }} style={{ cursor: "pointer", fontSize: 12, padding: "2px 8px", border: "1px solid var(--line)", boxShadow: "none" }}>
+                            <p className="ev-list-item-organizer">by {ev.organizer}</p>
+                            <p className="ev-list-item-meta"><Icon name="ti-calendar" /> {formatWhen(ev.startsAt)}</p>
+                            <div className="ev-list-item-actions">
+                              <button className="btn btn-xs btn-ghost ev-btn-xs-outline" type="button" onClick={function() { setDetailEvent(ev); }}>
                                 Details
                               </button>
                               {canCancel && (
                                 <button
-                                  className="btn btn-xs btn-ghost"
+                                  className="btn btn-xs btn-ghost ev-btn-xs-outline"
                                   type="button"
                                   onClick={function() { handleCancelRegistration(item.reg); }}
-                                  style={{ cursor: "pointer", fontSize: 12, padding: "2px 8px", border: "1px solid var(--line)", boxShadow: "none" }}
                                 >
                                   Cancel
                                 </button>
@@ -804,22 +780,22 @@ export default function EventsPage() {
                     </div>
                   )}
 
-                  <h4 style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--muted)", margin: "14px 0 8px", fontWeight: 700 }}>Past</h4>
+                  <h4 className="ev-section-label-past">Past</h4>
                   {pastRegs.length === 0 ? (
-                    <p style={{ color: "var(--muted)", fontSize: 14 }}>No past registrations.</p>
+                    <p className="ev-muted-sm">No past registrations.</p>
                   ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div className="ev-list-column">
                       {pastRegs.map(function(item) {
                         var ev = item.event;
                         return (
-                          <div key={item.reg.id} style={{ padding: 14, border: "1px solid var(--line)", borderRadius: "var(--radius)", background: "var(--surface)" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
-                              <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>{ev.name}</h4>
+                          <div key={item.reg.id} className="ev-list-item">
+                            <div className="ev-list-item-header">
+                              <h4 className="ev-list-item-title">{ev.name}</h4>
                               <Badge tone={statusTone(item.reg.status)}>{statusLabel(item.reg.status)}</Badge>
                             </div>
-                            <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: 13 }}>{formatWhen(ev.startsAt)}</p>
-                            <div style={{ marginTop: 10 }}>
-                              <button className="btn btn-xs btn-ghost" type="button" onClick={function() { setDetailEvent(ev); }} style={{ cursor: "pointer", fontSize: 12, padding: "2px 8px", border: "1px solid var(--line)", boxShadow: "none" }}>
+                            <p className="ev-list-item-meta-compact">{formatWhen(ev.startsAt)}</p>
+                            <div className="ev-list-item-actions">
+                              <button className="btn btn-xs btn-ghost ev-btn-xs-outline" type="button" onClick={function() { setDetailEvent(ev); }}>
                                 Details
                               </button>
                             </div>
@@ -833,47 +809,47 @@ export default function EventsPage() {
             </Card>
 
             {/* Section 3: My Events */}
-            <Card style={{ transition: "all 0.2s ease" }}>
+            <Card className="ev-sidebar-card">
               <div
-                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", userSelect: "none" }}
+                className="ev-collapsible-header"
                 onClick={function() { setMyEventsCollapsed(!myEventsCollapsed); }}
               >
-                <h3 style={{ margin: 0, fontSize: 16, fontFamily: "'Outfit', sans-serif", fontWeight: 700, display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
-                  <Icon name="ti-user-check" /> My Events <span className="badge" style={{ fontSize: 12, padding: "2px 8px" }}>{myEvents.length}</span>
+                <h3 className="ev-sidebar-title">
+                  <Icon name="ti-user-check" /> My Events <span className="badge ev-badge-sm">{myEvents.length}</span>
                 </h3>
-                <div style={{ fontSize: 16, color: "var(--muted)", display: "flex", alignItems: "center" }}>
+                <div className="ev-chevron-wrap">
                   <Icon name={myEventsCollapsed ? "ti-chevron-down" : "ti-chevron-up"} />
                 </div>
               </div>
 
               {!myEventsCollapsed && (
-                <div style={{ marginTop: 14 }}>
-                  <h4 style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--muted)", margin: "10px 0 8px", fontWeight: 700 }}>Upcoming Organized</h4>
+                <div className="ev-sidebar-body">
+                  <h4 className="ev-section-label-organized">Upcoming Organized</h4>
                   {upcomingMyEvents.length === 0 ? (
-                    <p style={{ color: "var(--muted)", fontSize: 14, margin: "0 0 14px" }}>You are not organizing any upcoming events.</p>
+                    <p className="ev-muted-sm-mb">You are not organizing any upcoming events.</p>
                   ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 18 }}>
+                    <div className="ev-list-column-spaced">
                       {upcomingMyEvents.map(function(ev) {
                         return (
-                          <div key={ev.id} style={{ padding: 14, border: "1px solid var(--line)", borderRadius: "var(--radius)", background: "var(--surface)" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
-                              <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>{ev.name}</h4>
+                          <div key={ev.id} className="ev-list-item">
+                            <div className="ev-list-item-header">
+                              <h4 className="ev-list-item-title">{ev.name}</h4>
                               <Badge>{ev.registeredCount} registered</Badge>
                             </div>
-                            <p style={{ margin: "6px 0 0", fontSize: 13 }}><Icon name="ti-calendar" /> {formatWhen(ev.startsAt)}</p>
-                            <div style={{ marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                            <p className="ev-list-item-meta"><Icon name="ti-calendar" /> {formatWhen(ev.startsAt)}</p>
+                            <div className="ev-list-item-actions-wrap">
                               {ev.registeredCount === 0 && (
-                                <button className="btn btn-xs btn-ghost" type="button" onClick={function() { setEditEvent(ev); }} style={{ cursor: "pointer", fontSize: 12, padding: "2px 8px", border: "1px solid var(--line)", boxShadow: "none" }}>
+                                <button className="btn btn-xs btn-ghost ev-btn-xs-outline" type="button" onClick={function() { setEditEvent(ev); }}>
                                   <Icon name="ti-pencil" /> Edit
                                 </button>
                               )}
-                              <button className="btn btn-xs btn-ghost" type="button" onClick={function() { openRoster(ev); }} style={{ cursor: "pointer", fontSize: 12, padding: "2px 8px", border: "1px solid var(--line)", boxShadow: "none" }}>
+                              <button className="btn btn-xs btn-ghost ev-btn-xs-outline" type="button" onClick={function() { openRoster(ev); }}>
                                 <Icon name="ti-users" /> Roster
                               </button>
-                              <button className="btn btn-xs btn-ghost" type="button" onClick={function() { exportFromRow(ev); }} style={{ cursor: "pointer", fontSize: 12, padding: "2px 8px", border: "1px solid var(--line)", boxShadow: "none" }}>
+                              <button className="btn btn-xs btn-ghost ev-btn-xs-outline" type="button" onClick={function() { exportFromRow(ev); }}>
                                 <Icon name="ti-download" /> CSV
                               </button>
-                              <button className="btn btn-xs btn-ghost" type="button" onClick={function() { handleCancelEvent(ev); }} style={{ cursor: "pointer", fontSize: 12, padding: "2px 8px", border: "1px solid var(--line)", boxShadow: "none" }}>
+                              <button className="btn btn-xs btn-ghost ev-btn-xs-outline" type="button" onClick={function() { handleCancelEvent(ev); }}>
                                 <Icon name="ti-ban" /> Cancel
                               </button>
                             </div>
@@ -883,24 +859,24 @@ export default function EventsPage() {
                     </div>
                   )}
 
-                  <h4 style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--muted)", margin: "14px 0 8px", fontWeight: 700 }}>Past / Cancelled</h4>
+                  <h4 className="ev-section-label-past-organized">Past / Cancelled</h4>
                   {pastMyEvents.length === 0 ? (
-                    <p style={{ color: "var(--muted)", fontSize: 14 }}>Nothing here yet.</p>
+                    <p className="ev-muted-sm">Nothing here yet.</p>
                   ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div className="ev-list-column">
                       {pastMyEvents.map(function(ev) {
                         return (
-                          <div key={ev.id} style={{ padding: 14, border: "1px solid var(--line)", borderRadius: "var(--radius)", background: "var(--surface)" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
-                              <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>{ev.name}</h4>
+                          <div key={ev.id} className="ev-list-item">
+                            <div className="ev-list-item-header">
+                              <h4 className="ev-list-item-title">{ev.name}</h4>
                               {ev.status === "cancelled" && <Badge tone="warning">Cancelled</Badge>}
                             </div>
-                            <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: 13 }}>{formatWhen(ev.startsAt)} · {ev.registeredCount} registered</p>
-                            <div style={{ marginTop: 10, display: "flex", gap: 6 }}>
-                              <button className="btn btn-xs btn-ghost" type="button" onClick={function() { openRoster(ev); }} style={{ cursor: "pointer", fontSize: 12, padding: "2px 8px", border: "1px solid var(--line)", boxShadow: "none" }}>
+                            <p className="ev-list-item-meta-compact">{formatWhen(ev.startsAt)} · {ev.registeredCount} registered</p>
+                            <div className="ev-list-item-actions-row">
+                              <button className="btn btn-xs btn-ghost ev-btn-xs-outline" type="button" onClick={function() { openRoster(ev); }}>
                                 <Icon name="ti-users" /> Roster
                               </button>
-                              <button className="btn btn-xs btn-ghost" type="button" onClick={function() { exportFromRow(ev); }} style={{ cursor: "pointer", fontSize: 12, padding: "2px 8px", border: "1px solid var(--line)", boxShadow: "none" }}>
+                              <button className="btn btn-xs btn-ghost ev-btn-xs-outline" type="button" onClick={function() { exportFromRow(ev); }}>
                                 <Icon name="ti-download" /> CSV
                               </button>
                             </div>
@@ -953,23 +929,3 @@ export default function EventsPage() {
     </AppShell>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  height: 40,
-  minWidth: 180,
-  border: "1px solid var(--line)",
-  borderRadius: "var(--radius)",
-  padding: "0 12px",
-  fontSize: 14,
-  background: "var(--surface)",
-};
-
-const selectStyle: React.CSSProperties = {
-  height: 40,
-  minWidth: 160,
-  border: "1px solid var(--line)",
-  borderRadius: "var(--radius)",
-  padding: "0 12px",
-  fontSize: 14,
-  background: "var(--surface)",
-};
