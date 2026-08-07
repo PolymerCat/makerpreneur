@@ -147,57 +147,79 @@
     },
     {
       "type": "Feature",
-      "properties": {},
+      "properties": {
+        "title": "Padang Kawad"
+      },
       "geometry": { "type": "Point", "coordinates": [100.293333, 5.356562] }
     },
     {
       "type": "Feature",
-      "properties": {},
+      "properties": {
+        "title": "Bus stop Indah Kembara"
+      },
       "geometry": { "type": "Point", "coordinates": [100.295208, 5.355942] }
     },
     {
       "type": "Feature",
-      "properties": {},
+      "properties": {
+        "title": "Pharmacy"
+      },
       "geometry": { "type": "Point", "coordinates": [100.297797, 5.355101] }
     },
     {
       "type": "Feature",
-      "properties": {},
+      "properties": {
+        "title": "Stor Kimia"
+      },
       "geometry": { "type": "Point", "coordinates": [100.300452, 5.356145] }
     },
     {
       "type": "Feature",
-      "properties": {},
+      "properties": {
+        "title": "Pusat Sejahtera"
+      },
       "geometry": { "type": "Point", "coordinates": [100.302399, 5.358819] }
     },
     {
       "type": "Feature",
-      "properties": {},
+      "properties": {
+        "title": "Bus stop PPIK"
+      },
       "geometry": { "type": "Point", "coordinates": [100.304101, 5.358025] }
     },
     {
       "type": "Feature",
-      "properties": {},
+      "properties": {
+        "title": "SOLLAT"
+      },
       "geometry": { "type": "Point", "coordinates": [100.306672, 5.357248] }
     },
     {
       "type": "Feature",
-      "properties": {},
+      "properties": {
+        "title": "HBP"
+      },
       "geometry": { "type": "Point", "coordinates": [100.306538, 5.35506] }
     },
     {
       "type": "Feature",
-      "properties": {},
+      "properties": {
+        "title": "Bus stop SOM"
+      },
       "geometry": { "type": "Point", "coordinates": [100.303798, 5.35508] }
     },
     {
       "type": "Feature",
-      "properties": {},
+      "properties": {
+        "title": "Eureka"
+      },
       "geometry": { "type": "Point", "coordinates": [100.302674, 5.354778] }
     },
     {
       "type": "Feature",
-      "properties": {},
+      "properties": {
+        "title": "Harapan"
+      },
       "geometry": { "type": "Point", "coordinates": [100.300333, 5.35489] }
     }
   ]

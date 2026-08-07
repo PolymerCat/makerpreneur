@@ -837,7 +837,8 @@ input[type="range"] {
   color: var(--brand);
 }
 
-.shuttle-bus-marker {
+.shuttle-bus-marker,
+.shuttle-stop-marker {
   background: transparent;
   border: 0;
 }
