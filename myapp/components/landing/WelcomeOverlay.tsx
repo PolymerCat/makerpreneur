@@ -795,7 +795,7 @@ export function WelcomeOverlay(props: WelcomeOverlayProps) {
           transition={{ type: "spring", stiffness: 200, damping: 16 }}
         >
           <Link href="/register" className="cta-link-btn">
-            <span>Get started free &rarr;</span>
+            <span>Get started</span>
           </Link>
         </motion.div>
       </div>
