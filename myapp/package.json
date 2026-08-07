@@ -17,6 +17,7 @@
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.110.9",
     "canvas": "^3.2.3",
+    "framer-motion": "^13.0.0",
     "katex": "^0.18.1",
     "leaflet": "^1.9.4",
     "marked": "^18.0.7",
