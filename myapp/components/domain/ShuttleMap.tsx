@@ -21,6 +21,12 @@ var stops = routeData.features
 
 var USM_CENTER: [number, number] = [5.3571, 100.2936];
 
+function euclideanDistance(pairA: number[], pairB: number[]): number {
+  var dx = pairA[0] - pairB[0];
+  var dy = pairA[1] - pairB[1];
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
 function makeBusIcon(label: string, status: "In Transit" | "Boarding"): L.DivIcon {
   var palette =
     status === "Boarding"
@@ -30,17 +36,29 @@ function makeBusIcon(label: string, status: "In Transit" | "Boarding"): L.DivIco
     className: "shuttle-bus-marker",
     html:
       '<div class="flex items-center gap-1.5 drop-shadow-md">' +
-      '<div class="flex items-center justify-center rounded-md border border-gray-300 bg-gray-100 p-1">' +
-      '<img src="/icons/bus-icon.png" alt="" class="h-5 w-5" />' +
-      "</div>" +
       '<span class="rounded-full px-2.5 py-1 text-xs font-bold shadow-sm ' +
       palette +
       '">' +
       label +
       "</span>" +
+      '<div class="flex items-center justify-center rounded-md border border-gray-300 bg-gray-100 p-1">' +
+      '<img src="/icons/bus-icon.png" alt="" class="h-5 w-5" />' +
+      "</div>" +
       "</div>",
     iconSize: [110, 32],
     iconAnchor: [55, 16],
+  });
+}
+
+function makeUserIcon(): L.DivIcon {
+  return L.divIcon({
+    className: "shuttle-user-marker",
+    html:
+      '<div class="flex h-10 w-10 items-center justify-center rounded-full bg-white p-1 shadow-md">' +
+      '<img src="/icons/user-icon.png" alt="" class="h-full w-full" />' +
+      "</div>",
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
   });
 }
 
@@ -67,6 +85,32 @@ export function ShuttleMap() {
   var [selectedBus, setSelectedBus] = React.useState<BusInfo | null>(null);
   var [isExpanded, setIsExpanded] = React.useState(false);
   var mapRef = React.useRef<L.Map | null>(null);
+  var [userLocation, setUserLocation] = React.useState<[number, number]>(USM_CENTER);
+  var [nearestUserStop, setNearestUserStop] = React.useState<string>("");
+  React.useEffect(function () {
+    if (!navigator.geolocation) {
+      setUserLocation(USM_CENTER);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      function (pos) {
+        setUserLocation([pos.coords.latitude, pos.coords.longitude]);
+      },
+      function () {
+        setUserLocation(USM_CENTER);
+      }
+    );
+  }, []);
+  React.useEffect(function () {
+    var closest = stops.reduce(
+      function (best, stop) {
+        var dist = euclideanDistance([userLocation[1], userLocation[0]], [stop.lon, stop.lat]);
+        return dist < best.dist ? { stop: stop, dist: dist } : best;
+      },
+      { stop: stops[0], dist: Infinity }
+    );
+    setNearestUserStop(closest.stop.name);
+  }, [userLocation]);
   var [operationalBuses, setOperationalBuses] = React.useState<BusInfo[]>(function () {
     var padangKawad = stops.find(function (s) {
       return s.name === "Padang Kawad";
@@ -141,20 +185,26 @@ export function ShuttleMap() {
             />
           );
         })}
+        <Marker position={userLocation} icon={makeUserIcon()} />
       </MapContainer>
-      <div className="absolute right-4 top-4 z-[1000] w-60">
+      <div className="absolute right-4 top-4 z-[1000] w-52 md:w-72">
+        <div className="flex w-full items-center justify-between gap-2 rounded-2xl bg-indigo-50 px-4 py-2.5 text-indigo-900 shadow-lg shadow-black/10 backdrop-blur">
+          <span className="text-xs font-semibold md:text-sm">
+            📍 Nearest Stop: {nearestUserStop}
+          </span>
+        </div>
         <button
           type="button"
           onClick={function () {
             setIsExpanded(!isExpanded);
           }}
           aria-expanded={isExpanded}
-          className="flex w-full items-center justify-between gap-2 rounded-2xl bg-white/95 px-4 py-3 shadow-lg shadow-black/10 backdrop-blur transition-colors hover:bg-white"
+          className="mt-2 flex w-full items-center justify-between gap-2 rounded-2xl bg-white/95 px-4 py-3 shadow-lg shadow-black/10 backdrop-blur transition-colors hover:bg-white"
         >
           <span className="flex items-center gap-2">
             <span className="text-base">🚌</span>
-            <span className="text-sm font-semibold text-[#1c1917]">Active Buses</span>
-            <span className="text-xs font-medium text-[#57534e]">
+            <span className="text-xs font-semibold text-[#1c1917] md:text-sm">Active Buses</span>
+            <span className="text-xs font-medium text-[#57534e] md:text-sm">
               ({operationalBuses.length} live)
             </span>
           </span>
@@ -206,9 +256,9 @@ export function ShuttleMap() {
                           (bus.status === "In Transit" ? "bg-green-500" : "bg-amber-400")
                         }
                       ></span>
-                      <span className="text-sm font-semibold text-[#1c1917]">{bus.name}</span>
+                      <span className="text-xs font-semibold text-[#1c1917] md:text-sm">{bus.name}</span>
                     </span>
-                    <span className="text-xs font-medium text-[#57534e]">
+                    <span className="text-xs font-medium text-[#57534e] md:text-sm">
                       {bus.status === "In Transit" ? "Heading to " + bus.nextStop : bus.status}
                     </span>
                   </button>
@@ -220,9 +270,7 @@ export function ShuttleMap() {
         <button
           type="button"
           onClick={function () {
-            if (mapRef.current) {
-              mapRef.current.flyTo(USM_CENTER, 15, { animate: true });
-            }
+            window.location.reload();
           }}
           className="mt-2 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-purple-50 px-3 py-2 text-xs font-semibold text-purple-700 shadow-sm transition-colors hover:bg-purple-100"
         >
@@ -240,6 +288,27 @@ export function ShuttleMap() {
           Refresh Map
         </button>
       </div>
+      <button
+        type="button"
+        onClick={function () {
+          if (mapRef.current) {
+            mapRef.current.flyTo(userLocation, 17, { animate: true });
+          }
+        }}
+        aria-label="Recenter on my location"
+        className="absolute bottom-6 right-6 z-[1000] cursor-pointer rounded-full bg-white p-3 shadow-lg transition-colors hover:bg-gray-100"
+      >
+        <svg
+          className="h-5 w-5 text-[#57534e]"
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+        >
+          <circle cx="10" cy="10" r="3.5" />
+          <path strokeLinecap="round" d="M10 1.5v3.5M10 15v3.5M1.5 10h3.5M15 10h3.5" />
+        </svg>
+      </button>
     </div>
   );
 }
