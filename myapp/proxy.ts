@@ -6,7 +6,7 @@ var supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 var supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
 // Pages that are always reachable without signing in.
-var PUBLIC_PATHS = ["/signin", "/register", "/auth"];
+var PUBLIC_PATHS = ["/signin", "/register", "/auth", "/", "/welcome-demo"];
 
 // API routes handle their own auth and should not be redirected.
 var API_PATH_PATTERN = /\/api\//;

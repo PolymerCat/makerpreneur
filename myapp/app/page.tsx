@@ -15,6 +15,7 @@ import { useSession } from "@/lib/auth-context";
 import { getProfile, type Profile } from "@/lib/profile-store";
 import type { CalendarEvent, CampusEvent, Metric, MyCSDEvent } from "@/lib/types";
 import { expandEvents } from "@/app/planner/page";
+import { WelcomeOverlay } from "@/components/landing/WelcomeOverlay";
 
 export default function DashboardPage() {
   var { user } = useSession();
@@ -176,6 +177,18 @@ export default function DashboardPage() {
     } catch (_e) {
       return isoStr.substring(11, 16);
     }
+  }
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--background)" }}>
+        <div style={{ fontFamily: "var(--font-header)", fontWeight: 700, color: "var(--brand)" }}>Loading StudentHub...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <WelcomeOverlay />;
   }
 
   return (

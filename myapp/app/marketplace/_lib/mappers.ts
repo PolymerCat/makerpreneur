@@ -107,10 +107,21 @@ function asProfile(profiles?: ProfileRow | ProfileRow[] | null): ProfileRow | nu
   return Array.isArray(profiles) ? profiles[0] ?? null : profiles;
 }
 
+function sellerDisplayName(row: ProfileRow): string {
+  if (row.name && row.name.trim()) return row.name;
+  const local = (row.email || '').split('@')[0].split(/[._-]+/).filter(Boolean);
+  if (local.length === 0) return 'Student';
+  return local
+    .map(function (part) {
+      return part.charAt(0).toUpperCase() + part.slice(1);
+    })
+    .join(' ');
+}
+
 export function mapProfileToUser(row: ProfileRow): User {
   return {
     id: row.id,
-    name: row.name || "Student",
+    name: sellerDisplayName(row),
     avatarUrl: row.avatar_url,
     isVerified: row.is_verified,
     role: row.role === "admin" ? "admin" : "user",
