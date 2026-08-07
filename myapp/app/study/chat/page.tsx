@@ -147,11 +147,11 @@ function ToolSpinner(): React.ReactNode {
       aria-label="running"
       style={{
         display: "inline-block",
-        width: "10px",
-        height: "10px",
+        width: "12px",
+        height: "12px",
         borderRadius: "50%",
-        border: "2px solid rgba(255, 255, 255, 0.25)",
-        borderTopColor: "#fff",
+        border: "2px solid #e2e8f0",
+        borderTopColor: "var(--brand, #7c3aed)",
         animation: "chatSpin 0.8s linear infinite"
       }}
     />
@@ -186,28 +186,32 @@ function humanizeToolInfo(tool: string): { title: string; desc: string; icon: st
 }
 
 function ToolActivityStrip(props: { activity: ToolActivity[]; isSearching?: boolean }): React.ReactNode {
+  var isActualSearchToolRunning = props.activity && props.activity.some(function(t) {
+    return t.status === "running" && (t.tool === "search_material" || t.tool === "search_past_papers" || t.tool === "retrieve");
+  });
+
   if (!props.activity || props.activity.length === 0) {
     return (
       <React.Fragment>
         <style>{`
           @keyframes chatSpin { to { transform: rotate(360deg); } }
-          @keyframes pulseGlow { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+          @keyframes pulseGlow { 0%, 100% { opacity: 0.65; } 50% { opacity: 1; } }
         `}</style>
         <div style={{
-          background: "#1e293b",
-          border: "1px solid rgba(255, 255, 255, 0.12)",
+          background: "#ffffff",
+          border: "1px solid var(--line, #e2e8f0)",
           borderRadius: "14px",
           padding: "12px 16px",
           margin: "8px 0 12px",
-          display: "flex",
+          display: "inline-flex",
           alignItems: "center",
           gap: "12px",
           fontSize: "13px",
-          boxShadow: "0 6px 20px rgba(0, 0, 0, 0.2)"
+          boxShadow: "0 4px 16px rgba(0, 0, 0, 0.05)"
         }}>
           <ToolSpinner />
-          <span style={{ fontWeight: 600, color: "#f8fafc", animation: "pulseGlow 2s infinite" }}>
-            {props.isSearching ? "Searching course materials..." : "Study Buddy is thinking..."}
+          <span style={{ fontWeight: 600, color: "var(--text, #0f172a)", animation: "pulseGlow 2s infinite" }}>
+            {isActualSearchToolRunning ? "Searching course materials..." : "Study Buddy is thinking..."}
           </span>
         </div>
       </React.Fragment>
@@ -221,36 +225,36 @@ function ToolActivityStrip(props: { activity: ToolActivity[]; isSearching?: bool
     <React.Fragment>
       <style>{`
         @keyframes chatSpin { to { transform: rotate(360deg); } }
-        @keyframes pulseGlow { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+        @keyframes pulseGlow { 0%, 100% { opacity: 0.65; } 50% { opacity: 1; } }
         @keyframes stepFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
 
       <div className="chat-widget chat-widget-tools" style={{
-        background: "#1e293b",
-        border: "1px solid rgba(255, 255, 255, 0.14)",
+        background: "#ffffff",
+        border: "1px solid var(--line, #e2e8f0)",
         borderRadius: "14px",
         padding: "14px 16px",
         margin: "10px 0 12px",
-        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.25)"
+        boxShadow: "0 4px 20px rgba(0, 0, 0, 0.06)"
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px", paddingBottom: "8px", borderBottom: "1px solid rgba(255, 255, 255, 0.08)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px", paddingBottom: "8px", borderBottom: "1px solid #f1f5f9" }}>
           <div style={{
-            width: "24px",
-            height: "24px",
+            width: "26px",
+            height: "26px",
             borderRadius: "50%",
-            background: "#6366f1",
+            background: "rgba(124, 58, 237, 0.1)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            color: "#ffffff",
-            fontSize: "12px"
+            color: "var(--brand, #7c3aed)",
+            fontSize: "13px"
           }}>
             <Icon name={activeInfo ? activeInfo.icon : "ti-sparkles"} />
           </div>
-          <span style={{ fontWeight: 600, fontSize: "13px", color: "#f8fafc" }}>
+          <span style={{ fontWeight: 600, fontSize: "13px", color: "var(--text, #0f172a)" }}>
             {activeInfo ? activeInfo.title : "Study Buddy Working..."}
           </span>
-          <span style={{ marginLeft: "auto", fontSize: "11px", color: "#94a3b8", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+          <span style={{ marginLeft: "auto", fontSize: "11px", color: "#64748b", display: "inline-flex", alignItems: "center", gap: "6px" }}>
             {runningTool ? <ToolSpinner /> : <Icon name="ti-check" />}
             {runningTool ? "In Progress" : "Done"}
           </span>
@@ -269,27 +273,27 @@ function ToolActivityStrip(props: { activity: ToolActivity[]; isSearching?: bool
                   justifyContent: "space-between",
                   padding: "6px 10px",
                   borderRadius: "8px",
-                  background: isDone ? "rgba(255, 255, 255, 0.03)" : "rgba(99, 102, 241, 0.14)",
-                  border: isDone ? "1px solid rgba(255, 255, 255, 0.05)" : "1px solid rgba(99, 102, 241, 0.35)",
+                  background: isDone ? "#f8fafc" : "rgba(124, 58, 237, 0.06)",
+                  border: isDone ? "1px solid #e2e8f0" : "1px solid rgba(124, 58, 237, 0.2)",
                   fontSize: "12px",
                   animation: "stepFadeIn 0.25s ease-out"
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <span style={{
-                    color: isDone ? "#10b981" : "#6366f1",
+                    color: isDone ? "#10b981" : "var(--brand, #7c3aed)",
                     display: "flex",
                     alignItems: "center"
                   }}>
                     {isDone ? <Icon name="ti-check" /> : <ToolSpinner />}
                   </span>
-                  <span style={{ fontWeight: isDone ? 500 : 600, color: isDone ? "#cbd5e1" : "#ffffff" }}>
+                  <span style={{ fontWeight: isDone ? 500 : 600, color: isDone ? "#64748b" : "#0f172a" }}>
                     {info.title}
                   </span>
                 </div>
 
                 {!isDone ? (
-                  <span style={{ color: "#a5b4fc", fontSize: "11px", fontStyle: "italic", animation: "pulseGlow 1.5s infinite" }}>
+                  <span style={{ color: "var(--brand, #7c3aed)", fontSize: "11px", fontStyle: "italic", animation: "pulseGlow 1.5s infinite" }}>
                     {info.desc}
                   </span>
                 ) : null}
@@ -1650,13 +1654,7 @@ export default function ChatPage() {
       }).map(function(s) {
         return s.material.id;
       });
-      var isGreeting = /^(hi|hello|hey|greetings|thanks|thank you|good morning|good afternoon)\b/i.test(question.trim());
-
-      if (readyMaterialIds.length > 0 && !isGreeting) {
-        setIsSearching(true);
-      } else {
-        setIsSearching(false);
-      }
+      setIsSearching(false);
 
       pendingBufferRef.current = "";
       displayedTextRef.current = "";
@@ -1695,7 +1693,7 @@ export default function ChatPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           question: question,
-          materialIds: isGreeting ? [] : readyMaterialIds,
+          materialIds: readyMaterialIds,
           courseId: activeCourse?.id || "",
           chatHistory: chatHistory,
           summary: currentSummary,
@@ -1784,7 +1782,9 @@ export default function ChatPage() {
       isStreamDoneRef.current = true;
 
       if (user && targetConvId) {
-        await db.addMessage(targetConvId, "assistant", assistantMessage);
+        if (assistantMessage.trim() !== "") {
+          await db.addMessage(targetConvId, "assistant", assistantMessage);
+        }
         await db.renameConversation(targetConvId, title);
         var list = await db.listConversations(user.id);
         setConversations(list as Conversation[]);
@@ -1948,6 +1948,10 @@ export default function ChatPage() {
 
               {messages.map(function(msg, index) {
                 var isUser = msg.role === "user";
+                var isEmpty = !msg.content || msg.content.trim() === "";
+                if (isEmpty && !(index === messages.length - 1 && loading && !isUser)) {
+                  return null;
+                }
                 return (
                   <div key={index} className={"chat-row chat-row-" + msg.role}>
                     <div className="chat-avatar" style={{ background: "transparent" }}>

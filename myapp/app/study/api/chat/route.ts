@@ -15,7 +15,12 @@ async function buildActivitySnapshot(
     blocks.push("TODAY SNAPSHOT (auto, may be stale):")
 
     if (userId) {
-      var assign = await sdb.countAssignmentsDue(userId, 7)
+      var [assign, cards, saved, chats] = await Promise.all([
+        sdb.countAssignmentsDue(userId, 7),
+        courseId ? sdb.countDueCards(courseId) : Promise.resolve({ cardCount: 0, deckCount: 0 }),
+        sdb.getSavedItemCount(userId),
+        sdb.getActiveChatCount(userId)
+      ])
       if (assign.count > 0) {
         var dd = ""
         if (assign.nextDeadline) {
@@ -27,12 +32,9 @@ async function buildActivitySnapshot(
       }
 
       if (courseId) {
-        var cards = await sdb.countDueCards(courseId)
         blocks.push("  Flashcards due today: " + cards.cardCount + " across " + cards.deckCount + " decks")
       }
 
-      var saved = await sdb.getSavedItemCount(userId)
-      var chats = await sdb.getActiveChatCount(userId)
       blocks.push("  Marketplace: " + saved + " saved items, " + chats + " active chats")
     } else {
       blocks.push("  Sign in to see personalized deadlines and activity.")
@@ -53,51 +55,56 @@ async function buildInjectedContext(
     var supabase = await createServerSupabaseClient();
     var blocks: string[] = [];
 
-    if (userId) {
-      var { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("id", userId)
-        .single();
-      if (profile?.full_name) {
-        blocks.push("Student: " + profile.full_name);
-      }
-    }
+    // Independent reads run concurrently: profile, subject/plan, memories.
+    await Promise.all([
+      (async function() {
+        if (!userId) return;
+        var { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", userId)
+          .single();
+        if (profile?.full_name) {
+          blocks.push("STUDENT NAME: " + profile.full_name);
+        }
+      })(),
+      (async function() {
+        if (!courseId) return;
+        var { data: subject } = await supabase
+          .from("subjects")
+          .select("name")
+          .eq("id", courseId)
+          .eq("created_by", userId)
+          .single();
+        if (subject?.name) {
+          blocks.push("Active subject: " + subject.name);
+        }
 
-    if (courseId) {
-      var { data: subject } = await supabase
-        .from("subjects")
-        .select("name")
-        .eq("id", courseId)
-        .eq("created_by", userId)
-        .single();
-      if (subject?.name) {
-        blocks.push("Active subject: " + subject.name);
-      }
-
-      var { data: plans } = await supabase
-        .from("study_plans")
-        .select("exam_date, goals")
-        .eq("course_id", courseId)
-        .order("exam_date", { ascending: false })
-        .limit(1);
-      if (plans && plans.length > 0) {
-        var plan = plans[0];
-        if (plan.exam_date) blocks.push("Exam date: " + plan.exam_date);
-        if (plan.goals) blocks.push("Study goals: " + plan.goals);
-      }
-    }
-
-    // Inject ALL memory types (fact, preference, goal, weakness) newest-first so
-    // personal details reach the agent even when the client body param fails.
-    var memories = await sdb.listMemories(userId, courseId || undefined);
-    var memoryLines = memories
-      .filter(function(m) { return String(m.type || "") !== "episode"; })
-      .slice(0, 15)
-      .map(function(m) { return "- [" + m.type + "] " + m.content; });
-    if (memoryLines.length > 0) {
-      blocks.push("Student memories:\n" + memoryLines.join("\n"));
-    }
+        var { data: plans } = await supabase
+          .from("study_plans")
+          .select("exam_date, goals")
+          .eq("course_id", courseId)
+          .order("exam_date", { ascending: false })
+          .limit(1);
+        if (plans && plans.length > 0) {
+          var plan = plans[0];
+          if (plan.exam_date) blocks.push("Exam date: " + plan.exam_date);
+          if (plan.goals) blocks.push("Study goals: " + plan.goals);
+        }
+      })(),
+      (async function() {
+        // Inject ALL memory types (fact, preference, goal, weakness) newest-first so
+        // personal details reach the agent even when the client body param fails.
+        var memories = await sdb.listMemories(userId, courseId || undefined);
+        var memoryLines = memories
+          .filter(function(m) { return String(m.type || "") !== "episode"; })
+          .slice(0, 15)
+          .map(function(m) { return "- [" + m.type + "] " + m.content; });
+        if (memoryLines.length > 0) {
+          blocks.push("Student memories:\n" + memoryLines.join("\n"));
+        }
+      })()
+    ]);
 
     var snapshot = await buildActivitySnapshot(userId, courseId);
     if (snapshot) {
@@ -141,7 +148,6 @@ export async function POST(request: Request) {
     const chatHistory = body.chatHistory || "";
     const language = body.language || "en";
     const summary = body.summary || "";
-    const memories = body.memories || [];
     const courseId = body.courseId || body.subjectId || "";
     const images: string[] = body.images || [];
 
@@ -154,23 +160,25 @@ export async function POST(request: Request) {
 
     let userId = "";
     let imageParts: GeminiImagePart[] = [];
+    let injectedContext = "";
     try {
       const supabase = await createServerSupabaseClient();
       const authRes = await supabase.auth.getUser();
       userId = authRes.data?.user?.id || "";
 
-      if (images.length > 0) {
-        imageParts = await downloadImageParts(supabase, images);
-      }
+      // Image downloads and context queries are independent — run them together.
+      const [imgResult, ctxResult] = await Promise.all([
+        images.length > 0
+          ? downloadImageParts(supabase, images).catch(function() { return [] as GeminiImagePart[]; })
+          : Promise.resolve([] as GeminiImagePart[]),
+        buildInjectedContext(userId, courseId)
+      ]);
+      imageParts = imgResult;
+      injectedContext = ctxResult;
     } catch (authErr) {
       console.error("[CHAT-ROUTE] Session/image setup error:", authErr);
     }
 
-    const memoriesText = Array.isArray(memories)
-      ? memories.join("\n")
-      : String(memories || "");
-
-    const injectedContext = await buildInjectedContext(userId, courseId);
     const summaryBlock = summary ? "Summary: " + summary : "";
 
     const encoder = new TextEncoder();
@@ -186,7 +194,6 @@ export async function POST(request: Request) {
             materialIds,
             injectedContext,
             chatHistory,
-            memories: memoriesText,
             images: imageParts
           });
 

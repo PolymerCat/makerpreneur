@@ -56,7 +56,8 @@ var COLUMN_MAP: Record<string, Record<string, string>> = {
   event_registrations: { eventId: "event_id", userId: "user_id", createdAt: "created_at", updatedAt: "updated_at" },
   assignments: { userId: "user_id", createdAt: "created_at", updatedAt: "updated_at" },
   profiles: { fullName: "full_name", matricNumber: "matric_number", preferredLanguage: "preferred_language", mycsdPoints: "mycsd_points", createdAt: "created_at", updatedAt: "updated_at" },
-  planner_events: { userId: "user_id", createdAt: "created_at", updatedAt: "updated_at" }
+  planner_events: { userId: "user_id", createdAt: "created_at", updatedAt: "updated_at" },
+  sos_alerts: { userId: "user_id", recipientUserId: "recipient_user_id", createdAt: "created_at", updatedAt: "updated_at" }
 };
 
 function toSnake(table: string, data: any): any {
@@ -652,7 +653,7 @@ async function listRepositoryPapers(): Promise<any[]> {
   });
 }
 
-async function getCourseAnalytics(courseId: string, userId: string, courseName?: string): Promise<any> {
+async function getCourseAnalytics(courseId: string, userId: string, courseName?: string, enrichTopics: boolean = true): Promise<any> {
   var client = await getClient();
   var now = new Date();
   
@@ -755,7 +756,7 @@ async function getCourseAnalytics(courseId: string, userId: string, courseName?:
       }
 
       // Name fallback topics via LLM once, persist to the predictions rows so reloads are free
-      if (unnamed.length > 0) {
+      if (enrichTopics && unnamed.length > 0) {
         var questions = unnamed.map(function(u) { return u.qObj.question || ""; });
         var names = await aiNameTopics(questions, courseName || "this course");
         var patched: Record<string, any[]> = {};
@@ -1124,6 +1125,54 @@ async function getActiveChatCount(userId: string): Promise<number> {
   return count || 0
 }
 
+/* --- SOS alert helpers --- */
+
+async function sendSosAlert(data: {
+  userId: string;
+  recipientUserId: string;
+  latitude: number | null;
+  longitude: number | null;
+  accuracy: number | null;
+  note?: string;
+}): Promise<any> {
+  return insert("sos_alerts", {
+    userId: data.userId,
+    recipientUserId: data.recipientUserId,
+    latitude: data.latitude,
+    longitude: data.longitude,
+    accuracy: data.accuracy,
+    note: data.note || null,
+    status: "sent"
+  });
+}
+
+async function listSosAlerts(filters: Record<string, any>): Promise<any[]> {
+  var client = await getClient();
+  var query = client.from("sos_alerts").select("*");
+  var filterKeys = Object.keys(filters || {});
+  for (var i = 0; i < filterKeys.length; i++) {
+    var k = filterKeys[i];
+    var mapped = k;
+    var cmap = COLUMN_MAP["sos_alerts"];
+    if (cmap && cmap[k]) {
+      mapped = cmap[k];
+    }
+    query = query.eq(mapped, filters[k]);
+  }
+  var result = await query.order("created_at", { ascending: false });
+  if (result.error) {
+    throw new Error("listSosAlerts: " + result.error.message);
+  }
+  return toCamelList("sos_alerts", result.data || []);
+}
+
+async function acknowledgeSosAlert(id: string): Promise<any | null> {
+  return update("sos_alerts", id, {
+    status: "acknowledged",
+    updatedAt: new Date().toISOString()
+  });
+}
+
 export var sdb = {
   getClient: getClient,
   insert: insert,
@@ -1162,6 +1211,9 @@ export var sdb = {
   countAssignmentsDue: countAssignmentsDue,
   countDueCards: countDueCards,
   getSavedItemCount: getSavedItemCount,
-  getActiveChatCount: getActiveChatCount
+  getActiveChatCount: getActiveChatCount,
+  sendSosAlert: sendSosAlert,
+  listSosAlerts: listSosAlerts,
+  acknowledgeSosAlert: acknowledgeSosAlert
 };
 

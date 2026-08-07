@@ -279,7 +279,7 @@ async function runSlotChain<T>(
 
 // --- OpenRouter (OpenAI-compatible) driver ---------------------------------
 
-async function openRouterChat(model: string, messages: any[], opts: { temperature?: number; maxTokens?: number; json?: boolean; tools?: any[]; stream?: boolean } = {}): Promise<any> {
+async function openRouterChat(model: string, messages: any[], opts: { temperature?: number; maxTokens?: number; json?: boolean; tools?: any[]; stream?: boolean; sessionId?: string } = {}): Promise<any> {
   var openRouterKey = process.env.OPENROUTER_API_KEY || "";
   if (!openRouterKey) {
     throw new Error("OPENROUTER_API_KEY is not set");
@@ -302,6 +302,7 @@ async function openRouterChat(model: string, messages: any[], opts: { temperatur
     body.tool_choice = "auto";
   }
   if (opts.stream) body.stream = true;
+  if (opts.sessionId) body.session_id = opts.sessionId;
   var res = await fetch(OPENROUTER_URL, {
     method: "POST",
     headers: {
@@ -521,7 +522,7 @@ export type AgentStreamEvent =
 // stream text deltas and still detect function calls at stream end.
 async function* generateContentStreamWithTools(
   messages: any[],
-  opts: { tools?: any; temperature?: number; task?: string; onUsage?: (usage: LlmUsage) => void; slots?: Slot[] } = {}
+  opts: { tools?: any; temperature?: number; task?: string; onUsage?: (usage: LlmUsage) => void; slots?: Slot[]; sessionId?: string } = {}
 ): AsyncGenerator<AgentStreamEvent, void, unknown> {
   var onUsage = opts.onUsage;
   var temp = typeof opts.temperature === "number" ? opts.temperature : 0.3;
@@ -541,7 +542,7 @@ async function* generateContentStreamWithTools(
       slotTrackCall(key);
 
       if (slot.provider === "openrouter") {
-        var res = await openRouterChat(slot.model, openAiMessages, { temperature: temp, tools: toOpenAITools(opts.tools), stream: true });
+        var res = await openRouterChat(slot.model, openAiMessages, { temperature: temp, tools: toOpenAITools(opts.tools), stream: true, sessionId: opts.sessionId });
         var reader = res.body.getReader();
         var decoder = new TextDecoder();
         var buffer = "";
