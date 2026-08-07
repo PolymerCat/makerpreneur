@@ -277,7 +277,7 @@ export function AssignmentTracker() {
   var allItems = pendingItems.concat(doneItems);
 
   return (
-    <Card style={{ padding: 18 }}>
+    <Card style={{ padding: 18, overflow: "hidden", maxWidth: "100%" }}>
       {editing && (
         <AssignmentEditModal
           assignment={editing}
@@ -286,7 +286,7 @@ export function AssignmentTracker() {
         />
       )}
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 14 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 28, color: "var(--brand)" }}>
             <Icon name="ti-alarm" />
@@ -296,7 +296,7 @@ export function AssignmentTracker() {
             <span style={{ fontSize: 13, color: "var(--muted)" }}>Tasks & deadlines with automatic planner sync</span>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <button
             type="button"
             title={sortOrder === "earliest" ? "Showing earliest first — click for latest" : "Showing latest first — click for earliest"}
@@ -414,16 +414,17 @@ export function AssignmentTracker() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
+                  flexWrap: "wrap",
                   padding: "10px 14px",
                   borderRadius: "var(--radius)",
                   border: !isDone && dueInfo.isOverdue ? "1px solid #ef4444" : "1px solid var(--line)",
                   background: !isDone && dueInfo.isOverdue ? "rgba(239, 68, 68, 0.05)" : "var(--surface)",
                   opacity: isDone ? 0.65 : 1,
-                  gap: 12,
+                  gap: 10,
                 }}
               >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                     <strong style={{ fontSize: 14, textDecoration: isDone ? "line-through" : "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {item.title}
                     </strong>
@@ -447,7 +448,7 @@ export function AssignmentTracker() {
                   </div>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   {!isDone && (
                     <>
                       {dueInfo.isOverdue ? (
