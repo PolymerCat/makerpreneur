@@ -5991,12 +5991,39 @@ input[type="range"] {
     max-width: 560px !important;
     padding: 20px !important;
   }
+  .welcome-features-grid {
+    max-width: 560px !important;
+    gap: 14px !important;
+  }
+  .welcome-feature-card {
+    padding: 16px 12px !important;
+  }
+  .rich-dashboard-preview {
+    max-width: 560px !important;
+    padding: 20px !important;
+  }
   .welcome-page-wrap {
     margin-top: 130px;
   }
 }
 
+.desktop-title {
+  display: inline;
+}
+.mobile-title {
+  display: none;
+}
+
 @media (max-width: 768px) {
+  .desktop-title {
+    display: none !important;
+  }
+  .mobile-title {
+    display: inline-block !important;
+  }
+  .sub-steps-list {
+    display: none !important;
+  }
   .welcome-demo-overlay {
     justify-content: flex-start;
     overflow-y: auto;
@@ -6028,6 +6055,14 @@ input[type="range"] {
     padding: 6px 12px;
     font-size: 12px;
   }
+  .welcome-auth-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 20px 16px !important;
+  }
+  .welcome-page-wrap {
+    margin-top: 40px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -6050,6 +6085,7 @@ input[type="range"] {
 /* Left Narration */
 .narration-col {
   min-width: 0;
+  transform: translateY(-16px);
 }
 
 .step-number-badge {
@@ -6168,7 +6204,7 @@ input[type="range"] {
   box-shadow: var(--shadow);
   padding: 24px;
   width: 100%;
-  max-width: 360px;
+  max-width: 500px;
 }
 
 .auth-tabs {
@@ -7074,6 +7110,202 @@ input[type="range"] {
   color: var(--danger);
   padding: 1px 4px;
   border-radius: 3px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   WELCOME MOBILE (max-width 768px) — GPU-only CSS animations
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Stage transitions ── */
+.welcome-mobile .demo-stage-box {
+  transform: translateY(28px);
+  transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.welcome-mobile .demo-stage-box.active {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+/* ── Feature card entrance ── */
+@keyframes cardPopMobile {
+  0%   { transform: scale(0.6); opacity: 0; }
+  60%  { transform: scale(1.06); opacity: 1; }
+  100% { transform: scale(1);    opacity: 1; }
+}
+.welcome-mobile .demo-stage-box.active .welcome-feature-card:nth-child(1) { animation: cardPopMobile 0.4s ease 0.08s both; }
+.welcome-mobile .demo-stage-box.active .welcome-feature-card:nth-child(2) { animation: cardPopMobile 0.4s ease 0.14s both; }
+.welcome-mobile .demo-stage-box.active .welcome-feature-card:nth-child(3) { animation: cardPopMobile 0.4s ease 0.20s both; }
+.welcome-mobile .demo-stage-box.active .welcome-feature-card:nth-child(4) { animation: cardPopMobile 0.4s ease 0.26s both; }
+.welcome-mobile .demo-stage-box.active .welcome-feature-card:nth-child(5) { animation: cardPopMobile 0.4s ease 0.32s both; }
+.welcome-mobile .demo-stage-box.active .welcome-feature-card:nth-child(6) { animation: cardPopMobile 0.4s ease 0.38s both; }
+.welcome-mobile .demo-stage-box.active .welcome-feature-card:nth-child(7) { animation: cardPopMobile 0.4s ease 0.44s both; }
+.welcome-mobile .demo-stage-box.active .welcome-feature-card:nth-child(8) { animation: cardPopMobile 0.4s ease 0.50s both; }
+.welcome-mobile .demo-stage-box.active .welcome-feature-card:nth-child(9) { animation: cardPopMobile 0.4s ease 0.56s both; }
+
+/* ── Feature card hover / spotlight ── */
+.welcome-mobile .welcome-feature-card {
+  transition: box-shadow 0.3s ease, transform 0.15s ease;
+  cursor: pointer;
+}
+.welcome-mobile .welcome-feature-card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 4px 5px 0px var(--line);
+}
+.welcome-mobile .welcome-feature-card.spot {
+  box-shadow: 3px 4px 0px var(--line), 0 0 24px rgba(107, 33, 168, 0.45);
+}
+
+/* ── Icon bob ── */
+@keyframes iconBobMobile {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
+.welcome-mobile .demo-stage-box.active .welcome-feature-card:nth-child(1) .fi-icon { animation: iconBobMobile 2.2s ease-in-out 0.18s infinite; }
+.welcome-mobile .demo-stage-box.active .welcome-feature-card:nth-child(2) .fi-icon { animation: iconBobMobile 2.2s ease-in-out 0.36s infinite; }
+.welcome-mobile .demo-stage-box.active .welcome-feature-card:nth-child(3) .fi-icon { animation: iconBobMobile 2.2s ease-in-out 0.54s infinite; }
+.welcome-mobile .demo-stage-box.active .welcome-feature-card:nth-child(4) .fi-icon { animation: iconBobMobile 2.2s ease-in-out 0.72s infinite; }
+.welcome-mobile .demo-stage-box.active .welcome-feature-card:nth-child(5) .fi-icon { animation: iconBobMobile 2.2s ease-in-out 0.90s infinite; }
+.welcome-mobile .demo-stage-box.active .welcome-feature-card:nth-child(6) .fi-icon { animation: iconBobMobile 2.2s ease-in-out 1.08s infinite; }
+.welcome-mobile .demo-stage-box.active .welcome-feature-card:nth-child(7) .fi-icon { animation: iconBobMobile 2.2s ease-in-out 1.26s infinite; }
+.welcome-mobile .demo-stage-box.active .welcome-feature-card:nth-child(8) .fi-icon { animation: iconBobMobile 2.2s ease-in-out 1.44s infinite; }
+.welcome-mobile .demo-stage-box.active .welcome-feature-card:nth-child(9) .fi-icon { animation: iconBobMobile 2.2s ease-in-out 1.62s infinite; }
+
+/* ── Float ── */
+@keyframes floatMobile {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+.welcome-mobile .float-auth      { animation: floatMobile 3s   ease-in-out infinite; }
+.welcome-mobile .float-phone     { animation: floatMobile 3.4s ease-in-out infinite; }
+.welcome-mobile .float-dashboard { animation: floatMobile 3.6s ease-in-out infinite; }
+.welcome-mobile .float-auth {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+.welcome-mobile .float-auth .welcome-auth-card {
+  width: 100% !important;
+  max-width: 320px !important;
+}
+
+/* ── Wiggle (notification) ── */
+@keyframes wiggleMobile {
+  0%, 100% { transform: rotate(0); }
+  20% { transform: rotate(-1.6deg); }
+  40% { transform: rotate(1.6deg); }
+  60% { transform: rotate(-1deg); }
+  80% { transform: rotate(0.5deg); }
+}
+.welcome-mobile .wiggle-trigger { animation: wiggleMobile 0.6s ease 0.55s; }
+
+/* ── Pulse ── */
+@keyframes pulseMobile {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.05); }
+}
+.welcome-mobile .pulse-trigger { animation: pulseMobile 1.4s ease-in-out infinite; }
+
+/* ── Pop-in (toast) ── */
+@keyframes popInMobile {
+  0%   { opacity: 0; transform: scale(0.85) translateY(14px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+.welcome-mobile .pop-in-toast { animation: popInMobile 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+
+/* ── Wobble (auth card) ── */
+@keyframes wobbleMobile {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-1.5deg); }
+  75% { transform: rotate(1.5deg); }
+}
+.welcome-mobile .wobble-trigger { animation: wobbleMobile 0.5s ease; }
+
+/* ── Badge pulse (In Progress) ── */
+@keyframes badgePulseMobile {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.1); opacity: 0.7; }
+}
+.welcome-mobile .badge-pulse { animation: badgePulseMobile 1.6s ease-in-out infinite; }
+
+/* ── Checkbox pop ── */
+@keyframes checkPopMobile {
+  0%   { transform: scale(0.4) rotate(-30deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+.welcome-mobile .check-pop { animation: checkPopMobile 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+
+/* ── Confetti ── */
+@keyframes confettiBurstMobile {
+  0%   { opacity: 0; transform: translate(0, 0) rotate(0deg) scale(1); }
+  18%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--tx), var(--ty)) rotate(var(--tr)) scale(0.65); }
+}
+.welcome-mobile .confetti-piece-mobile {
+  position: absolute;
+  width: 8px; height: 8px;
+  border-radius: 2px;
+  border: 1px solid var(--line);
+  animation: confettiBurstMobile 1.3s ease-out forwards;
+  opacity: 0;
+}
+.welcome-mobile .confetti-origin-mobile {
+  position: absolute;
+  left: 50%; top: 38%;
+  z-index: 5;
+  pointer-events: none;
+}
+
+/* ── CTA ── */
+.welcome-mobile .welcome-bottom-cta {
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.welcome-mobile .welcome-bottom-cta.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Swipe hint ── */
+.welcome-mobile .swipe-hint {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+  animation: pulseMobile 2s ease-in-out infinite;
+}
+
+/* ── Phone swipe-hint bar ── */
+@keyframes floatSwipeHint {
+  0%, 100% { transform: translateY(0); opacity: 0.3; }
+  50%      { transform: translateY(-4px); opacity: 0.65; }
+}
+.welcome-mobile .phone-swipe-hint {
+  animation: floatSwipeHint 1.8s ease-in-out infinite;
+}
+
+/* ── Narration slide ── */
+@keyframes narrationSlide {
+  0%   { opacity: 0; transform: translateX(-20px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+.welcome-mobile .narration-slide {
+  animation: narrationSlide 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Force significantly wider Welcome Auth Card across all viewports */
+.welcome-auth-card {
+  width: 100% !important;
+  max-width: 600px !important;
+  padding: 32px 36px !important;
+}
+
+@media (max-width: 768px) {
+  .welcome-auth-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 24px 20px !important;
+  }
 }
 
 
