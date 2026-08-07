@@ -13,44 +13,7 @@ import { plannerEvents } from "@/lib/sample-data";
 import type { CalendarEvent } from "@/lib/types";
 import { db } from "@/app/study/_lib/db";
 import { useSession } from "@/lib/auth-context";
-
-const WEEKDAY_KEYS = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
-
-export function expandEvents(base: CalendarEvent[], month: Date): CalendarEvent[] {
-  const year = month.getFullYear();
-  const monthIndex = month.getMonth();
-  const monthStart = new Date(year, monthIndex, 1);
-  const monthEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59);
-  const out: CalendarEvent[] = [];
-
-  for (const ev of base) {
-    if (!ev.rrule) {
-      const d = new Date(ev.start_time);
-      if (d >= monthStart && d <= monthEnd) out.push(ev);
-      continue;
-    }
-
-    const days = ev.rrule.split(":")[1].split(",").map((s) => s.trim().toUpperCase());
-    const start = new Date(ev.start_time);
-    const durationMs = new Date(ev.end_time).getTime() - start.getTime();
-    const iter = new Date(start);
-
-    while (iter <= monthEnd) {
-      if (days.includes(WEEKDAY_KEYS[iter.getDay()]) && iter >= monthStart) {
-        const instanceStart = new Date(iter);
-        out.push({
-          ...ev,
-          id: `${ev.id}-${iter.toISOString().slice(0, 10)}`,
-          start_time: instanceStart.toISOString(),
-          end_time: new Date(instanceStart.getTime() + durationMs).toISOString(),
-        });
-      }
-      iter.setDate(iter.getDate() + 1);
-    }
-  }
-
-  return out.sort((a, b) => a.start_time.localeCompare(b.start_time));
-}
+import { expandEvents } from "@/lib/planner-utils";
 
 export default function PlannerPage() {
   const { user } = useSession();
