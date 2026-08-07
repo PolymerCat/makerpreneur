@@ -23,22 +23,26 @@ import {
   type PurchaseRow,
   type ReportRow,
 } from "../_lib/mappers";
+import { ensureUserProfile } from "../_lib/profile";
+import { formatSupabaseError } from "../_lib/errors";
 import type { Product, Purchase, Report, User as AppUser } from "@/lib/marketplace/types";
 import { adminDismissReport, adminHideListing, formatAdminReportError } from "../_lib/admin-reports";
 
 export default function MarketplaceProfilePage() {
   const { user, supabase } = useSession();
-  const { isAdmin } = useMarketplaceUser();
+  const { isAdmin, profile: contextProfile, profileLoading } = useMarketplaceUser();
   const router = useRouter();
   const { toast } = useToast();
 
   const [appUser, setAppUser] = useState<AppUser | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
   const [userListings, setUserListings] = useState<Product[]>([]);
   const [userSales, setUserSales] = useState<Purchase[]>([]);
   const [purchaseHistory, setPurchaseHistory] = useState<Purchase[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [confirmLogout, setConfirmLogout] = useState(false);
 
+  const [isProfileLoading, setIsProfileLoading] = useState(true);
   const [isListingsLoading, setIsListingsLoading] = useState(true);
   const [isSalesLoading, setIsSalesLoading] = useState(true);
   const [isPurchasesLoading, setIsPurchasesLoading] = useState(true);
@@ -48,52 +52,89 @@ export default function MarketplaceProfilePage() {
   const loadProfile = useCallback(async () => {
     if (!user) {
       setAppUser(null);
+      setProfileError(null);
+      setIsProfileLoading(false);
       return;
     }
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .single();
-    setAppUser(data ? mapProfileToUser(data as ProfileRow) : null);
+    setIsProfileLoading(true);
+    setProfileError(null);
+    try {
+      const row = await ensureUserProfile(supabase, user);
+      setAppUser(mapProfileToUser(row as ProfileRow));
+    } catch (error) {
+      console.error("[MARKETPLACE] Failed to load profile:", error);
+      setProfileError(formatSupabaseError(error));
+    } finally {
+      setIsProfileLoading(false);
+    }
   }, [user, supabase]);
 
   const loadListings = useCallback(async () => {
     if (!user) return;
     setIsListingsLoading(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("products")
       .select("*, profiles:seller_id(*)")
       .eq("seller_id", user.id)
       .order("date_added", { ascending: false });
-    setUserListings((data as ProductRow[] | null)?.map(mapProductRow) ?? []);
+    if (error) {
+      console.error("[MARKETPLACE] Failed to load listings:", error);
+      toast({
+        variant: "destructive",
+        title: "Could not load listings",
+        description: formatSupabaseError(error),
+      });
+      setUserListings([]);
+    } else {
+      setUserListings((data as ProductRow[] | null)?.map(mapProductRow) ?? []);
+    }
     setIsListingsLoading(false);
-  }, [user, supabase]);
+  }, [user, supabase, toast]);
 
   const loadSales = useCallback(async () => {
     if (!user) return;
     setIsSalesLoading(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("purchases")
       .select("*")
       .eq("seller_id", user.id)
       .eq("status", "Successful")
       .order("purchase_date", { ascending: false });
-    setUserSales((data as PurchaseRow[] | null)?.map(mapPurchaseRow) ?? []);
+    if (error) {
+      console.error("[MARKETPLACE] Failed to load sales:", error);
+      toast({
+        variant: "destructive",
+        title: "Could not load sales",
+        description: formatSupabaseError(error),
+      });
+      setUserSales([]);
+    } else {
+      setUserSales((data as PurchaseRow[] | null)?.map(mapPurchaseRow) ?? []);
+    }
     setIsSalesLoading(false);
-  }, [user, supabase]);
+  }, [user, supabase, toast]);
 
   const loadPurchases = useCallback(async () => {
     if (!user) return;
     setIsPurchasesLoading(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("purchases")
       .select("*")
       .eq("buyer_id", user.id)
       .order("purchase_date", { ascending: false });
-    setPurchaseHistory((data as PurchaseRow[] | null)?.map(mapPurchaseRow) ?? []);
+    if (error) {
+      console.error("[MARKETPLACE] Failed to load purchases:", error);
+      toast({
+        variant: "destructive",
+        title: "Could not load purchases",
+        description: formatSupabaseError(error),
+      });
+      setPurchaseHistory([]);
+    } else {
+      setPurchaseHistory((data as PurchaseRow[] | null)?.map(mapPurchaseRow) ?? []);
+    }
     setIsPurchasesLoading(false);
-  }, [user, supabase]);
+  }, [user, supabase, toast]);
 
   const loadReports = useCallback(async () => {
     if (!isAdmin) {
@@ -111,13 +152,7 @@ export default function MarketplaceProfilePage() {
   }, [isAdmin, supabase]);
 
   useEffect(() => {
-    if (!user) {
-      setIsListingsLoading(false);
-      setIsSalesLoading(false);
-      setIsPurchasesLoading(false);
-      setIsReportsLoading(false);
-      return;
-    }
+    if (!user) return;
 
     loadProfile();
     loadListings();
@@ -140,6 +175,9 @@ export default function MarketplaceProfilePage() {
       supabase.removeChannel(channel);
     };
   }, [user, supabase, loadProfile, loadListings, loadSales, loadPurchases, loadReports]);
+
+  const displayUser = appUser ?? contextProfile ?? null;
+  const profileStillLoading = Boolean(user) && (isProfileLoading || profileLoading) && !displayUser;
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -176,12 +214,12 @@ export default function MarketplaceProfilePage() {
     }
   };
 
-  if (!user && !appUser) {
+  if (!user) {
     return (
-      <div style={{ textAlign: "center", padding: "60px 0" }}>
+      <div className="mp-page-center">
         <h2>Please log in</h2>
-        <p style={{ color: "var(--muted)" }}>Log in to view your marketplace profile.</p>
-        <div style={{ marginTop: 16 }}>
+        <p className="mp-muted-text">Log in to view your marketplace profile.</p>
+        <div className="mp-page-center-actions">
           <Link className="btn btn-primary" href="/signin">
             Log In
           </Link>
@@ -190,10 +228,26 @@ export default function MarketplaceProfilePage() {
     );
   }
 
-  if (!appUser) {
+  if (profileStillLoading) {
     return (
-      <div style={{ textAlign: "center", padding: "60px 0" }}>
+      <div className="mp-page-center">
         <p>Loading profile...</p>
+      </div>
+    );
+  }
+
+  if (!displayUser) {
+    return (
+      <div className="mp-page-center">
+        <h2>Could not load profile</h2>
+        <p className="mp-muted-text">
+          {profileError || "Your marketplace profile could not be loaded. Try refreshing the page."}
+        </p>
+        <div className="mp-page-center-actions">
+          <button type="button" className="btn btn-primary" onClick={() => loadProfile()}>
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
@@ -207,22 +261,22 @@ export default function MarketplaceProfilePage() {
 
   return (
     <div className="stack">
-      <Card style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
-        <span className="avatar avatar-lg" style={{ fontSize: 30, width: 80, height: 80 }}>
-          {appUser.name.charAt(0)}
+      <Card className="mp-profile-header-card">
+        <span className="avatar avatar-lg mp-profile-avatar">
+          {displayUser.name.charAt(0)}
         </span>
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <h1 style={{ margin: 0 }}>{appUser.name}</h1>
-          {appUser.isVerified && (
-            <div style={{ color: "var(--success)", fontSize: 13, fontWeight: 700 }}>
+        <div className="mp-profile-header-body">
+          <h1 className="mp-profile-name">{displayUser.name}</h1>
+          {displayUser.isVerified && (
+            <div className="mp-profile-verified">
               <i className="ti ti-shield-check" /> Verified Student
             </div>
           )}
-          <p style={{ color: "var(--muted)", margin: "4px 0 0" }}>
+          <p className="mp-profile-joined">
             Joined in {new Date().getFullYear()}
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="mp-profile-header-actions">
           <Link className="btn btn-sm" href="/marketplace/profile/edit">
             <i className="ti ti-edit" /> Edit Profile
           </Link>
@@ -242,11 +296,9 @@ export default function MarketplaceProfilePage() {
             id: "listings",
             content: (
               <Card>
-                <h3 style={{ marginTop: 0 }}>Your Listings ({userListings.length})</h3>
+                <h3 className="mp-section-title">Your Listings ({userListings.length})</h3>
                 {isListingsLoading ? (
-                  <p style={{ color: "var(--muted)", textAlign: "center", padding: "30px 0" }}>
-                    Loading your listings...
-                  </p>
+                  <p className="mp-empty-state-sm">Loading your listings...</p>
                 ) : userListings.length > 0 ? (
                   <div className="products-grid">
                     {userListings.map((product) => (
@@ -262,7 +314,7 @@ export default function MarketplaceProfilePage() {
                     ))}
                   </div>
                 ) : (
-                  <div style={{ textAlign: "center", padding: "40px 0", color: "var(--muted)" }}>
+                  <div className="mp-empty-state">
                     <h3>No listings yet</h3>
                     <p>When you list an item for sale, it will appear here.</p>
                   </div>
@@ -274,9 +326,9 @@ export default function MarketplaceProfilePage() {
             id: "sales",
             content: (
               <Card>
-                <h3 style={{ marginTop: 0 }}>Your Sales History</h3>
+                <h3 className="mp-section-title">Your Sales History</h3>
                 {isSalesLoading ? (
-                  <p style={{ color: "var(--muted)" }}>Loading…</p>
+                  <p className="mp-loading-text">Loading…</p>
                 ) : userSales.length > 0 ? (
                   <Table
                     columns={[
@@ -293,7 +345,7 @@ export default function MarketplaceProfilePage() {
                     emptyLabel="No sales yet"
                   />
                 ) : (
-                  <p style={{ color: "var(--muted)", textAlign: "center", padding: "30px 0" }}>
+                  <p className="mp-empty-state-sm">
                     Successful sales will appear here.
                   </p>
                 )}
@@ -304,9 +356,9 @@ export default function MarketplaceProfilePage() {
             id: "purchases",
             content: (
               <Card>
-                <h3 style={{ marginTop: 0 }}>Your Purchase History</h3>
+                <h3 className="mp-section-title">Your Purchase History</h3>
                 {isPurchasesLoading ? (
-                  <p style={{ color: "var(--muted)" }}>Loading…</p>
+                  <p className="mp-loading-text">Loading…</p>
                 ) : purchaseHistory.length > 0 ? (
                   <Table
                     columns={[
@@ -328,7 +380,7 @@ export default function MarketplaceProfilePage() {
                     emptyLabel="No purchases yet"
                   />
                 ) : (
-                  <p style={{ color: "var(--muted)", textAlign: "center", padding: "30px 0" }}>
+                  <p className="mp-empty-state-sm">
                     Items you buy will appear here.
                   </p>
                 )}
@@ -341,9 +393,9 @@ export default function MarketplaceProfilePage() {
                   id: "reports",
                   content: (
                     <Card>
-                      <h3 style={{ marginTop: 0 }}>Open reports ({reports.length})</h3>
+                      <h3 className="mp-section-title">Open reports ({reports.length})</h3>
                       {isReportsLoading ? (
-                        <p style={{ color: "var(--muted)" }}>Loading…</p>
+                        <p className="mp-loading-text">Loading…</p>
                       ) : reports.length > 0 ? (
                         <Table
                           columns={[
@@ -351,7 +403,7 @@ export default function MarketplaceProfilePage() {
                               key: "productName",
                               label: "Product",
                               render: (r) => (
-                                <Link href={`/marketplace/products/${r.productId}`} style={{ color: "var(--brand)", fontWeight: 700 }}>
+                                <Link href={`/marketplace/products/${r.productId}`} className="mp-brand-link">
                                   {r.productName}
                                 </Link>
                               ),
@@ -367,7 +419,7 @@ export default function MarketplaceProfilePage() {
                               key: "actions",
                               label: "Actions",
                               render: (r) => (
-                                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                                <div className="mp-actions-row">
                                   <button
                                     type="button"
                                     className="btn btn-sm"
@@ -392,7 +444,7 @@ export default function MarketplaceProfilePage() {
                           emptyLabel="No open reports"
                         />
                       ) : (
-                        <p style={{ color: "var(--muted)", textAlign: "center", padding: "30px 0" }}>All clear!</p>
+                        <p className="mp-empty-state-sm">All clear!</p>
                       )}
                     </Card>
                   ),
@@ -417,7 +469,7 @@ export default function MarketplaceProfilePage() {
           </>
         }
       >
-        <p style={{ color: "var(--muted)", fontSize: 14 }}>You will be returned to the sign-in page.</p>
+        <p className="mp-dialog-muted">You will be returned to the sign-in page.</p>
       </Dialog>
     </div>
   );

@@ -26,4 +26,4 @@ export function isMissingTableError(error: unknown): boolean {
 }
 
 export const SCHEMA_SETUP_MESSAGE =
-  'Database tables are missing. Open Supabase → SQL Editor → paste and run 0014_marketplace.sql, then refresh this page.';
+  'Database tables are missing or incomplete. Open Supabase → SQL Editor → run 0014_marketplace.sql, then 0020_marketplace_profiles_bridge.sql, then refresh this page.';

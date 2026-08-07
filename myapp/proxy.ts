@@ -62,6 +62,11 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
+  // Public pages must not wait on Supabase auth (avoids 10s+ hangs on /signin).
+  if (isPublicPath(pathname)) {
+    return response;
+  }
+
   var supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll: function() {

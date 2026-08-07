@@ -30,18 +30,32 @@ export function AppShell({ children }: AppShellProps) {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <button
-          className="topbar-burger"
-          type="button"
-          onClick={() => setNavOpen((v) => !v)}
-          aria-label="Toggle navigation"
-          aria-expanded={navOpen}
-        >
-          <Icon name={navOpen ? "ti-x" : "ti-menu-2"} />
-        </button>
+        {navOpen ? (
+          <button
+            className="topbar-burger"
+            type="button"
+            onClick={() => setNavOpen(false)}
+            aria-label="Close navigation"
+            aria-expanded="true"
+            aria-controls="app-drawer"
+          >
+            <Icon name="ti-x" />
+          </button>
+        ) : (
+          <button
+            className="topbar-burger"
+            type="button"
+            onClick={() => setNavOpen(true)}
+            aria-label="Open navigation"
+            aria-expanded="false"
+            aria-controls="app-drawer"
+          >
+            <Icon name="ti-menu-2" />
+          </button>
+        )}
 
         <div className="brand-block">
-          <img src="/logo-crest.webp" alt="USM Crest Logo" className="brand-mark" style={{ objectFit: "contain", padding: "2px", background: "#fff" }} />
+          <img src="/logo-crest.webp" alt="USM Crest Logo" className="brand-mark" />
           <div>
             <strong>StudentHub USM</strong>
             <span>Campus workspace</span>
@@ -58,18 +72,24 @@ export function AppShell({ children }: AppShellProps) {
 
       <div className={`drawer-backdrop ${navOpen ? "open" : ""}`} onClick={closeNav} aria-hidden="true" />
 
-      <aside className={`drawer ${navOpen ? "open" : ""}`} aria-hidden={!navOpen}>
+      <aside
+        id="app-drawer"
+        className={`drawer ${navOpen ? "open" : ""}`}
+        aria-hidden={navOpen ? "false" : "true"}
+        inert={!navOpen ? true : undefined}
+      >
         <div className="drawer-head">
-          <img src="/logo-crest.webp" alt="USM Crest Logo" className="brand-mark" style={{ objectFit: "contain", padding: "2px", background: "#fff" }} />
+          <img src="/logo-crest.webp" alt="USM Crest Logo" className="brand-mark" />
           <strong>Navigation</strong>
           <button className="drawer-close" type="button" onClick={closeNav} aria-label="Close navigation">
             <Icon name="ti-x" />
           </button>
         </div>
 
-        <MainNav items={navItems} onNavigate={closeNav} />
-
-        <SosButton />
+        <div className="drawer-scroll">
+          <MainNav items={navItems} onNavigate={closeNav} />
+          <SosButton />
+        </div>
 
         <p className="drawer-foot">StudentHub USM · campus workspace</p>
       </aside>

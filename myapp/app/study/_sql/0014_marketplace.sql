@@ -4,6 +4,9 @@
 -- auth.uid()-scoped RLS. NOTE: chat rows live in `mp_messages` (the study
 -- hub already owns `public.messages` for study conversations).
 -- Apply manually in the Supabase SQL editor (there is no migration runner).
+-- If your `profiles` table was created by the study hub (full_name / student role),
+-- also run 0020_marketplace_profiles_bridge.sql so marketplace can read seller
+-- names and write profile fields (name, avatar, QR, payment note).
 -- The image_uploads Storage bucket is created at the bottom of this file.
 
 -- Profiles (extends auth.users)
