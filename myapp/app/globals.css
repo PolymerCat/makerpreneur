@@ -33,7 +33,9 @@
 html {
   -webkit-text-size-adjust: 100%;
   max-width: 100vw;
-  overflow-x: hidden;
+  overflow-x: clip;
+  overflow-y: auto;
+  scroll-behavior: smooth;
 }
 @supports (text-size-adjust: 100%) {
   html {
@@ -51,12 +53,14 @@ body {
   min-height: 100vh;
   min-height: 100dvh;
   margin: 0;
-  overscroll-behavior-y: none;
+  overscroll-behavior-y: auto;
+  touch-action: pan-x pan-y;
   background: var(--background);
   color: var(--text);
   font-family: 'Inter', sans-serif;
   max-width: 100vw;
-  overflow-x: hidden;
+  overflow-x: clip;
+  overflow-y: auto;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -5844,8 +5848,9 @@ img.brand-mark {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  overflow: hidden;
+  justify-content: flex-start;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
   padding: 24px;
 }
 
